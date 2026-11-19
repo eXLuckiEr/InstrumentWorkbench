@@ -1,0 +1,7 @@
+{
+    "id": "telemetry",
+    "name": "Binary telemetry stream (32-byte frames, 400 Hz)",
+    "kind": "device",
+    "version": "0.1.0",
+    "apiVersion": 3
+}

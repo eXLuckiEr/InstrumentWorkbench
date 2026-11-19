@@ -1,0 +1,7 @@
+{
+    "id": "redfish",
+    "name": "Redfish BMC monitor",
+    "kind": "device",
+    "version": "0.1.0",
+    "apiVersion": 3
+}

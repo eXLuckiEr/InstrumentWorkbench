@@ -1,0 +1,7 @@
+{
+    "id": "fakepsu",
+    "name": "Fake SCPI power supply",
+    "kind": "device",
+    "version": "0.1.0",
+    "apiVersion": 3
+}

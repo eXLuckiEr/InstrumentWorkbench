@@ -1,0 +1,7 @@
+{
+    "id": "sim",
+    "name": "Simulated instruments (SCPI PSU, telemetry stream)",
+    "kind": "transport",
+    "version": "0.1.0",
+    "apiVersion": 3
+}

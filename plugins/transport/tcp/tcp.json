@@ -1,0 +1,7 @@
+{
+    "id": "tcp",
+    "name": "TCP client transport",
+    "kind": "transport",
+    "version": "0.1.0",
+    "apiVersion": 3
+}
