@@ -68,7 +68,7 @@ jobs:
         with:
           version: ${{ env.QT_VERSION }}
           arch: ${{ matrix.qt_arch }}
-          modules: 'qtserialport qtshadertools'
+          modules: 'qtserialport qtshadertools qtwebengine qtwebchannel qtpositioning'
           cache: true
 
       - name: MSVC environment (Windows)
@@ -95,12 +95,11 @@ jobs:
           cmake --build "$rt/qtkeychain-build" --config Release --parallel 4
           cmake --install "$rt/qtkeychain-build" --config Release
 
-      # Qt WebEngine (the console's terminal tab) is not available on the runners yet: that tab is off.
+      # Qt WebEngine and WebChannel are installed with Qt: the console's terminal tab is built.
       - name: Configure
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DQTKEYCHAIN_ROOT="$QK_ROOT" \
-                -DIWP_CONSOLE_TERMINAL=OFF
+                -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" -DQTKEYCHAIN_ROOT="$QK_ROOT"
 
       - name: Build
         run: cmake --build build --config Release --parallel 4

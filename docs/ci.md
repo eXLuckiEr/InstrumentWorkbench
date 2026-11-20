@@ -22,12 +22,12 @@ git push origin v0.1.0
 ## Как устроена сборка
 
 - **Qt** ставит `jurplel/install-qt-action` (aqtinstall), версия в переменной `QT_VERSION` в начале файла
-  (сейчас 6.8.*; проект требует 6.5+). Модули: `qtserialport`, `qtshadertools`. Когда нужная вам версия
+  (сейчас 6.8.*; проект требует 6.5+). Модули: `qtserialport`, `qtshadertools`, `qtwebengine`, `qtwebchannel`, `qtpositioning`. Когда нужная вам версия
   (например 6.12) появится у aqtinstall, поменяйте одну строку.
 - **QtKeychain** собирается на раннере один раз на версию Qt и кэшируется.
-- **Qt WebEngine** на раннерах пока нет, поэтому CI собирает с `-DIWP_CONSOLE_TERMINAL=OFF`: в релизных сборках
-  консоль без вкладки «Терминал». Ставить расширение WebEngine можно через `aqt install-qt-official` с учётной
-  записью Qt (хранится в секретах репозитория) или собрать из исходников, но это не сделано.
+- **Qt WebEngine** в Qt 6.8 обычный модуль и ставится через aqtinstall вместе с `qtwebchannel` и `qtpositioning`,
+  так что вкладка «Терминал» в консоли собирается во всех трёх системах. В Qt 6.12 WebEngine вынесен в «Extensions»
+  и этим способом не ставится (см. README).
 - **Упаковка:** `tools/deploy_macos.sh` и `tools/deploy_windows.ps1`; их можно запускать и локально после сборки Release:
 
   ```
