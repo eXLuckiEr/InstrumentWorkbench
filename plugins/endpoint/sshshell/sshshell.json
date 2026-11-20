@@ -1,0 +1,7 @@
+{
+    "id": "sshshell",
+    "name": "SSH terminal (system OpenSSH, interactive shell)",
+    "kind": "endpoint",
+    "version": "0.1.0",
+    "apiVersion": 6
+}

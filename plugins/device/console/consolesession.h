@@ -11,5 +11,6 @@ public:
     ConsoleSession(const Endpoints &endpoints, iwp::DeviceModel *model, QObject *parent = nullptr);
 
 protected:
+    void onStart() override;
     void onCommand(const QString &name, const QVariant &arg) override;
 };

@@ -42,6 +42,7 @@ plugins/
   endpoint/http                    (QNetworkAccessManager: Redfish-сессии, Basic, Bearer, pinning сертификата)
   device/redfish                   (монитор BMC: шасси, Thermal, Power)
   endpoint/ssh                     (системный OpenSSH: один `ssh host sh`, askpass-помощник iwp_askpass)
+  endpoint/sshshell                (интерактивная оболочка `ssh -tt host` как поток байт для консоли)
   device/linuxhost                 (датчики Linux-узла по SSH одной командой за цикл)
 products/   профили поставки: список плагинов, которые собираются и отдаются клиенту
 cmake/      iwp_add_plugin() и прочие функции

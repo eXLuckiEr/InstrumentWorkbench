@@ -46,8 +46,12 @@ void SshEndpoint::doOpen(const QVariantMap &config)
     const int port = config.value("port", 22).toInt();
     m_credBase = QStringLiteral("ssh|%1:%2").arg(m_target).arg(port);
 
+    const bool shell = (m_mode == Mode::Shell);
+    m_token = QUuid::createUuid().toString(QUuid::Id128).left(12).toLatin1();
+    m_readyMarker = "__IWP_READY_" + m_token + "__";
+
     QStringList args;
-    args << "-T"                                    // no terminal: plain pipes
+    args << (shell ? "-tt" : "-T")                  // shell: remote pty (forced, our side is a pipe); else plain pipes
          << "-o" << "ServerAliveInterval=5"         // a dead link ends the process
          << "-o" << "ServerAliveCountMax=3"
          << "-o" << QStringLiteral("ConnectTimeout=%1").arg(config.value("connectTimeout", 15).toInt())
@@ -64,10 +68,19 @@ void SshEndpoint::doOpen(const QVariantMap &config)
     if (!jump.isEmpty())
         args << "-J" << jump;
     args << config.value("extraArgs").toStringList();
-    args << m_target << "sh";
+    if (shell) {
+        // ssh runs this on our side right after the login succeeded: a reliable "connected" signal
+        args << "-o" << "PermitLocalCommand=yes"
+             << "-o" << "LocalCommand=echo " + QString::fromLatin1(m_readyMarker);
+        args << m_target;
+        const QString remote = config.value("remoteCommand").toString().trimmed();
+        if (!remote.isEmpty())
+            args << remote;                         // default: the login shell
+    } else {
+        args << m_target << "sh";
+    }
 
     // channel for the askpass helper
-    m_token = QUuid::createUuid().toString(QUuid::Id128).left(12).toLatin1();
     m_askpassSecret = QUuid::createUuid().toString(QUuid::Id128);
     if (!m_server) {
         m_server = new QLocalServer(this);
@@ -97,13 +110,20 @@ void SshEndpoint::startProcess(const QStringList &args, const QString &sshPath)
     if (!m_process) {
         m_process = new QProcess(this);   // created in the worker thread
         connect(m_process, &QProcess::readyReadStandardOutput, this, [this] {
+            if (m_mode == Mode::Shell) {
+                onShellOutput(m_process->readAllStandardOutput());
+                return;
+            }
             m_out += m_process->readAllStandardOutput();
             parseOutput();
         });
         connect(m_process, &QProcess::readyReadStandardError, this, [this] {
-            m_err += m_process->readAllStandardError();
+            const QByteArray err = m_process->readAllStandardError();
+            m_err += err;
             if (m_err.size() > 8192)
                 m_err = m_err.right(8192);
+            if (m_mode == Mode::Shell)
+                onShellError(err);
         });
         connect(m_process, &QProcess::finished, this,
                 [this](int code, QProcess::ExitStatus) { onFinished(code); });
@@ -122,11 +142,15 @@ void SshEndpoint::startProcess(const QStringList &args, const QString &sshPath)
         env.insert("DISPLAY", ":0");                  // older versions only use askpass with a DISPLAY
     env.insert("IWP_ASKPASS_SOCKET", m_server->serverName());
     env.insert("IWP_ASKPASS_SECRET", m_askpassSecret);
+    if (m_mode == Mode::Shell)
+        env.insert("TERM", "xterm-256color");         // what ssh tells the remote side; matches xterm.js
     m_process->setProcessEnvironment(env);
 
     m_process->start(sshPath, args);
-    // Queued in the pipe until the login is done; the answer tells us the shell is up.
-    m_process->write("printf '__IWP_READY_" + m_token + "__\\n'\n");
+    if (m_mode == Mode::Command) {
+        // Queued in the pipe until the login is done; the answer tells us the shell is up.
+        m_process->write("printf '__IWP_READY_" + m_token + "__\\n'\n");
+    }
 }
 
 void SshEndpoint::stopProcess()
@@ -134,8 +158,12 @@ void SshEndpoint::stopProcess()
     if (!m_process || m_process->state() == QProcess::NotRunning)
         return;
     m_closing = true;
-    m_process->write("exit\n");
-    m_process->closeWriteChannel();
+    if (m_mode == Mode::Command) {
+        m_process->write("exit\n");
+        m_process->closeWriteChannel();
+    } else {
+        m_process->terminate();   // never type "exit" into what may be a running editor
+    }
     if (!m_process->waitForFinished(1500)) {
         m_process->terminate();
         if (!m_process->waitForFinished(1000))
@@ -154,6 +182,10 @@ void SshEndpoint::onFinished(int exitCode)
 {
     if (m_closing)
         return;
+    if (m_mode == Mode::Shell && exitCode == 0) {   // the user left the shell: a normal end
+        setState(State::Offline);
+        return;
+    }
     const QString why = tail(m_err);
     fail(why.isEmpty() ? tr("ssh exited with status %1").arg(exitCode) : tr("ssh: %1").arg(why));
 }
@@ -168,6 +200,15 @@ QString SshEndpoint::tail(const QByteArray &text)
 
 void SshEndpoint::doSend(quint64 id, const iwp::Request &request)
 {
+    if (m_mode == Mode::Shell) {          // keystrokes: raw bytes, nothing comes back as an answer
+        if (m_process && m_process->state() == QProcess::Running)
+            m_process->write(request.payload);
+        iwp::Response r;
+        r.ok = true;
+        finish(id, r);
+        return;
+    }
+
     // Single quotes inside the command are escaped, so the command is data for
     // `eval` in a subshell: a syntax error in it cannot kill the session, and
     // it cannot read our following commands from stdin.
@@ -183,6 +224,49 @@ void SshEndpoint::doSend(quint64 id, const iwp::Request &request)
         r.ok = true;
         finish(id, r);
     }
+}
+
+// Shell mode: nothing is shown before the ready marker (printed by ssh itself right after the login);
+// if the output does not start with it (LocalCommand not honoured), everything is passed through.
+void SshEndpoint::onShellOutput(const QByteArray &data)
+{
+    if (m_ready) {
+        emit unsolicited(data);
+        return;
+    }
+    m_out += data;
+    const QByteArray &mk = m_readyMarker;
+    if (m_out.size() < mk.size() && mk.startsWith(m_out))
+        return;                                       // may still turn out to be the marker
+    int skip = 0;
+    if (m_out.startsWith(mk)) {
+        skip = mk.size();
+        if (m_out.size() == skip)
+            return;                                   // end of line not there yet
+        if (m_out.at(skip) == '\r') {
+            if (m_out.size() == skip + 1)
+                return;
+            ++skip;
+        }
+        if (m_out.at(skip) == '\n')
+            ++skip;
+    }
+    const QByteArray rest = m_out.mid(skip);
+    m_out.clear();
+    m_ready = true;
+    setState(State::Online);
+    if (!rest.isEmpty())
+        emit unsolicited(rest);
+}
+
+// ssh's own messages ("Warning: Permanently added...", "Connection to x closed.") belong in the
+// terminal too; they use bare LF, a terminal needs CR LF.
+void SshEndpoint::onShellError(const QByteArray &data)
+{
+    QByteArray text = data;
+    text.replace("\r\n", "\n");
+    text.replace("\n", "\r\n");
+    emit unsolicited(text);
 }
 
 void SshEndpoint::parseOutput()

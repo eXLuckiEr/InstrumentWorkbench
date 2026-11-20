@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 
@@ -11,6 +12,9 @@
 
 int main(int argc, char *argv[])
 {
+    // Qt WebEngine (console terminal) is loaded later from a plugin and requires this to be set
+    // before the application object exists. Harmless when the plugin is absent.
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     QApplication app(argc, argv);
     QApplication::setOrganizationName("IWP");
     QApplication::setApplicationName("InstrumentWorkbenchPlatform");

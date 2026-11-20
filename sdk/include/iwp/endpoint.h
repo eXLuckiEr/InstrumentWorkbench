@@ -55,6 +55,8 @@ public:
     ~IEndpoint() override;
 
     State state() const { return m_state; }
+    // The config the endpoint was opened with (empty before the first open()).
+    QVariantMap config() const { return m_config; }
     virtual QString kind() const = 0;      // "scpi", "stream", "http", "ssh"...
 
     // Set by the host before the endpoint is opened (any thread, before use).
@@ -105,6 +107,7 @@ private:
     void failAll(const QString &reason);
 
     State m_state = State::Offline;
+    QVariantMap m_config;
     QList<Pending> m_queue;
     QHash<quint64, InFlight> m_inflight;
     quint64 m_nextId = 1;

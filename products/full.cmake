@@ -5,6 +5,7 @@ set(IWP_PLUGINS
     transport/sim
     endpoint/http
     endpoint/ssh
+    endpoint/sshshell
     device/console
     device/fakepsu
     device/telemetry

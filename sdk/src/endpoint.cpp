@@ -12,6 +12,7 @@ void IEndpoint::open(const QVariantMap &config)
     if (m_state == State::Connecting || m_state == State::Authenticating
         || m_state == State::Online)
         return;
+    m_config = config;
     setState(State::Connecting);
     doOpen(config);
 }
