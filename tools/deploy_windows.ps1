@@ -47,18 +47,33 @@ $pluginDir = Join-Path $app "plugins"
 if (Test-Path $pluginDir) {
     $targets += (Get-ChildItem $pluginDir -Filter *.dll | ForEach-Object { $_.FullName })
 }
-Write-Host "windeployqt: $wd"
-& $wd --release --no-opengl-sw --dir $app @targets
-if ($LASTEXITCODE -ne 0) { throw "windeployqt failed ($LASTEXITCODE)" }
-
+# QtKeychain
+$kcDll = $null
 if ($QtKeychainRoot) {
-    $dll = Get-ChildItem -Path $QtKeychainRoot -Recurse -Filter "qt6keychain.dll" -ErrorAction SilentlyContinue |
-           Select-Object -First 1
-    if (-not $dll) { throw "qt6keychain.dll not found under $QtKeychainRoot" }
-    Copy-Item $dll.FullName $app
+    $kcDll = Get-ChildItem -Path $QtKeychainRoot -Recurse -Filter "qt6keychain.dll" -ErrorAction SilentlyContinue |
+             Select-Object -First 1
+    if (-not $kcDll) { throw "qt6keychain.dll not found under $QtKeychainRoot" }
 } else {
     Write-Warning "QtKeychain not given: if the host was built with it, the program will not start without qt6keychain.dll"
 }
+
+# windeployqt takes qt6keychain.dll for a Qt module (the name starts with "qt6") and looks for it in Qt's bin.
+# So it is put there for the time of the run and removed afterwards.
+$qtBin = Split-Path -Parent $wd
+$tmpKc = $null
+if ($kcDll -and -not (Test-Path (Join-Path $qtBin "qt6keychain.dll"))) {
+    $tmpKc = Join-Path $qtBin "qt6keychain.dll"
+    Copy-Item $kcDll.FullName $tmpKc
+}
+try {
+    Write-Host "windeployqt: $wd"
+    & $wd --release --no-opengl-sw --dir $app @targets
+    if ($LASTEXITCODE -ne 0) { throw "windeployqt failed ($LASTEXITCODE)" }
+} finally {
+    if ($tmpKc) { Remove-Item -Force $tmpKc -ErrorAction SilentlyContinue }
+}
+
+if ($kcDll) { Copy-Item $kcDll.FullName $app -Force }
 
 Copy-Item LICENSE, README.md $app
 Copy-Item -Recurse THIRD_PARTY (Join-Path $app "THIRD_PARTY")
