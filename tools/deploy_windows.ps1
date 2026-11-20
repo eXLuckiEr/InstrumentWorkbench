@@ -25,7 +25,7 @@ Set-Location $repo
 
 $bin = Join-Path $BuildDir "bin\$Config"
 if (-not (Test-Path (Join-Path $bin "iwp_host.exe"))) {
-    throw "iwp_host.exe not found in $bin: build the project first (cmake --build $BuildDir --config $Config)"
+    throw "iwp_host.exe not found in ${bin}: build the project first (cmake --build $BuildDir --config $Config)"
 }
 
 $wd = (Get-Command windeployqt -ErrorAction SilentlyContinue).Source
