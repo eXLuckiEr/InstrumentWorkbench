@@ -1,198 +1,179 @@
 # Instrument Workbench Platform (IWP)
 
-Модульная платформа для приборных приложений на Qt 6: ядро (host) + плагины
-транспортов (TCP, UART, CAN, VISA...) и плагины устройств (протокол + UI конкретной железки).
+Модульное настольное приложение на Qt 6 для работы с приборами и устройствами: ядро (host) и плагины.
+Плагины дают каналы связи (UART, TCP, HTTP, SSH...) и сами устройства (протокол и страница интерфейса
+конкретной «железки»). Пароли хранятся только в системной связке ключей.
 
-## Архитектура
+Что есть сейчас:
 
-```
-Transport (байты: TCP, UART, sim)  -> StreamEndpoint (SCPI-строки / raw)  \
-Endpoint-плагины (VISA, HTTP, SSH)  ---------------------------------------> SessionBase -> DeviceModel -> Page (UI)
-                                                                              (оркестратор)   (состояние)
-```
+| Группа | Плагин | Что делает |
+|--------|--------|------------|
+| Приборы | `nge103b` | Rohde & Schwarz NGE103B по SCPI: каналы, уставки, графики напряжения/тока/мощности |
+| Серверы | `redfish` | монитор BMC по Redfish: шасси, температуры, питание |
+| Серверы | `linuxhost` | датчики Linux-узла по SSH |
+| Инструменты | `console` | сырой поток байт: строки/SCPI-блоки с историей, полноценный терминал (xterm.js), hex |
+| Симуляторы | `fakepsu`, `telemetry` | SCPI-источник питания; поток 32-байтных кадров 400 Гц |
 
-- **Transport** (`ITransport`) - канал байтов. Плагины: `tcp`, `sim` (симулятор SCPI-прибора).
-- **Framer** (`IFramer`) - режет поток байт на кадры и оборачивает исходящие данные. Готовые: `LineFramer`
-  (строки с терминатором, SCPI), `RawFramer`, `FixedFrameFramer` (бинарный поток фиксированных кадров:
-  заголовок, длина, CRC16-CCITT-FALSE, ресинхронизация после потери байт). Выбирается в конфиге роли
-  (`"framing": {...}`) или своим классом через `IDeviceFactory::createFramer()`.
-- **Endpoint** (`IEndpoint`) - место, куда отправляют запрос и получают ответ. Базовый класс сам держит
-  очередь: приоритеты, таймауты, ограничение параллелизма, отказ всех запросов при потере связи.
-  `StreamEndpoint` делает endpoint из любого транспорта (kind `scpi` - строки с терминатором, `stream` - сырые байты).
-  Не-байтовые каналы (NI-VISA, HTTP/Redfish, SSH) - отдельные плагины `IEndpointFactory`.
-- **Session** (`SessionBase`) - оркестратор устройства: жизненный цикл (ждёт все endpoint-ы, `onStart` -
-  идентификация/настройка, потом опрос), `PollScheduler` (циклические задачи, без накопления запросов),
-  помощники `query()/write()/poll()`. Живёт в рабочем потоке вместе со своими endpoint-ами.
-- **DeviceModel** - единственное, с чем разговаривает UI: значения по ключам с пометкой stale,
-  события (`postEvent`), статус, команды UI -> сессия (`sendCommand`). Живёт в UI-потоке,
-  методы сессии потокобезопасны.
-- **Device-плагин** = сессия + страница + список ролей endpoint-ов (`{"scpi","scpi"}`, `{"api","http"}`...).
-  Хост строит по ролям форму подключения (профиль), профиль запоминается.
+Каналы: транспорты `tcp`, `serial`, `sim`; endpoint-ы `http`, `ssh` (команды), `sshshell` (интерактивная оболочка).
 
-## Структура
+Дополнительно: быстрые графики (`PlotView`), профили подключения, переводы (английский и русский),
+профили поставки (в бинарник попадают только нужные плагины).
 
-```
-sdk/        интерфейсы и базовые классы (iwp::sdk) - единственная зависимость плагинов
-host/       приложение: плагины, DeviceRuntime (поток на устройство), окно с профилем подключения
-plugins/
-  transport/tcp, transport/serial, transport/sim   (serial: QSerialPort; sim: SCPI-прибор и поток телеметрии 400 Гц)
-  device/console
-  device/fakepsu                   (SCPI: опрос, ручка, индикаторы)
-  device/telemetry                 (push-поток 32-байтных кадров: фреймер, статистика канала, watchdog)
-  endpoint/http                    (QNetworkAccessManager: Redfish-сессии, Basic, Bearer, pinning сертификата)
-  device/redfish                   (монитор BMC: шасси, Thermal, Power)
-  endpoint/ssh                     (системный OpenSSH: один `ssh host sh`, askpass-помощник iwp_askpass)
-  endpoint/sshshell                (интерактивная оболочка `ssh -tt host` как поток байт для консоли)
-  device/linuxhost                 (датчики Linux-узла по SSH одной командой за цикл)
-products/   профили поставки: список плагинов, которые собираются и отдаются клиенту
-cmake/      iwp_add_plugin() и прочие функции
-```
+## Требования
 
-Зависимости строго вниз: `plugin -> sdk`, `host -> sdk`. Плагины не знают друг о друге.
+| Компонент | Версия | Нужен | Без него |
+|-----------|--------|-------|----------|
+| CMake | 3.21+ | обязательно | не соберётся |
+| Компилятор с C++17 | Apple Clang (Xcode Command Line Tools), MSVC 2022, GCC / Clang | обязательно | |
+| Qt | 6.5+ (Core, Gui, Widgets, Svg, Network) | обязательно | |
+| Qt Serial Port | как у Qt | нет | плагин `transport/serial` пропускается |
+| Qt Linguist Tools | Qt 6.7+ | нет | приложение только на английском |
+| Qt Shader Tools и Gui (private) | Qt 6.7+ | нет | нет GPU-рендера графиков, остаётся CPU (он и так по умолчанию) |
+| Qt WebEngine и Qt WebChannel | как у Qt | нет | в консоли нет вкладки «Терминал», остаются «Строка» и «Hex» |
+| QtKeychain | с поддержкой Qt 6 | нет | пароль нельзя сохранить, он спрашивается каждый раз |
+| Клиент OpenSSH | 8.4+ | только при работе | плагины `ssh`, `sshshell`, `linuxhost` не подключатся |
+
+Разработка и проверка идут на **Qt 6.12.0, macOS (Apple Silicon)**. Windows 10/11 и Linux - целевые платформы,
+код кроссплатформенный, но сборка на них пока не проверялась.
+
+Qt 6.12: Qt WebEngine больше не входит в релиз Qt, а ставится отдельно в Maintenance Tool в разделе верхнего
+уровня **Extensions** (версии 6.140.x). Для Windows нужен MSVC-комплект (не MinGW). Путь установки расширения
+может понадобиться добавить в `CMAKE_PREFIX_PATH`.
 
 ## Сборка
 
-Нужны Qt >= 6.5 (с модулем Qt Serial Port для `transport/serial`; без него плагин пропускается) и CMake >= 3.21.
-
-**Qt Creator (рекомендуется):** File -> Open File or Project -> `CMakeLists.txt`, выбрать Qt-кит,
-запускать таргет `iwp_host`. Профиль поставки: Projects -> Build -> Initial CMake Parameters,
-например `-DIWP_PRODUCT=customer_example`.
-
-**Командная строка:**
-
 ```
-cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/Qt/6.x.x/<kit> -DCMAKE_BUILD_TYPE=Debug
+git clone https://github.com/eXLuckiEr/InstrumentWorkbench.git
+cd InstrumentWorkbench
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_PREFIX_PATH=/path/to/Qt/6.12.0/macos
 cmake --build build
-./build/bin/Debug/iwp_host
 ```
 
-Пример пресетов для CLI лежит в `tools/CMakePresets.example.json` (скопировать в корень как
-`CMakePresets.json`; Qt Creator с ними конфликтует, поэтому по умолчанию они отключены).
+`CMAKE_PREFIX_PATH` - каталог Qt вашего комплекта: `~/Qt/6.12.0/macos`, `C:/Qt/6.12.0/msvc2022_64`,
+`~/Qt/6.12.0/gcc_64`. Всё (приложение, SDK, плагины, помощник `iwp_askpass`) собирается в `build/bin/<Config>/`.
+Запуск: `build/bin/Release/iwp_host` (на macOS это `iwp_host.app`). Ninja необязателен: подойдёт любой генератор CMake.
 
-## QtKeychain (пароли в системной связке ключей)
+**Qt Creator (рекомендуется):** File → Open File or Project → `CMakeLists.txt`, выбрать комплект Qt, в Run
+Configuration выбрать `iwp_host`. Параметры CMake задаются в Projects → Build → Initial CMake Parameters.
 
-Пароли никогда не пишутся в профили и файлы. Хост спрашивает их в диалоге и по желанию сохраняет в
-Keychain (macOS) / Credential Manager (Windows) / libsecret (Linux) через QtKeychain.
-Без QtKeychain всё работает, но пароль спрашивается каждый раз.
+### Параметры CMake
 
-Один раз собрать QtKeychain под ту же версию Qt и установить, например в `~/Qt/qtkeychain`:
+| Параметр | По умолчанию | Смысл |
+|----------|--------------|-------|
+| `IWP_PRODUCT` | `full` | профиль поставки (`products/<имя>.cmake`): какие плагины собирать |
+| `IWP_USE_KEYCHAIN` | `ON` | использовать QtKeychain, если найден |
+| `QTKEYCHAIN_ROOT` | пусто | куда установлен QtKeychain (ещё ищется `~/Qt/qtkeychain`) |
+| `IWP_CONSOLE_TERMINAL` | `ON` | вкладка «Терминал» в консоли (нужен Qt WebEngine; если его нет, пропускается сама) |
+
+В конце настройки CMake печатает, что нашлось: `Console: terminal mode enabled`, `PlotView: GPU renderer ...`,
+`QtKeychain found`. Если чего-то не хватает, это видно там же, сборка при этом не прерывается.
+
+### Зависимости по платформам
+
+**macOS:** Xcode Command Line Tools (`xcode-select --install`), Qt из Qt Installer (модули Qt Serial Port и
+Extensions → Qt WebEngine отмечаются в Maintenance Tool), CMake (из Qt Installer, Homebrew или cmake.org).
+
+**Windows:** Visual Studio 2022 (Build Tools с компонентом C++), Qt для `MSVC 2022 64-bit` из Qt Installer,
+CMake. Клиент OpenSSH: Параметры → Приложения → Дополнительные компоненты → «Клиент OpenSSH» (на Windows 10/11
+есть в системе). Сборку удобнее вести из Qt Creator или из «x64 Native Tools Command Prompt».
+
+**Linux:** компилятор и CMake (`build-essential cmake ninja-build`), Qt 6.5+ из Qt Installer или из пакетов
+дистрибутива (на Ubuntu примерно так: `qt6-base-dev libqt6svg6-dev libqt6serialport6-dev qt6-tools-dev`), заголовки OpenGL
+(`libgl1-dev`), `libsecret-1-dev` для QtKeychain. Пакеты WebEngine называются у разных дистрибутивов по-разному,
+или ставится Extension из Qt Installer.
+
+### QtKeychain (пароли в связке ключей)
+
+Пароли никогда не пишутся в профили и файлы. Хост спрашивает их в диалоге и по желанию сохраняет в Keychain
+(macOS), Credential Manager (Windows) или libsecret (Linux) через
+[QtKeychain](https://github.com/frankosterfeld/qtkeychain). Его нужно один раз собрать под ту же версию Qt:
 
 ```
 git clone https://github.com/frankosterfeld/qtkeychain.git
 cmake -S qtkeychain -B qtkeychain-build -DBUILD_WITH_QT6=ON -DBUILD_TRANSLATIONS=OFF \
       -DBUILD_TEST_APPLICATION=OFF -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_PREFIX_PATH=$HOME/Qt/6.12.0/macos -DCMAKE_INSTALL_PREFIX=$HOME/Qt/qtkeychain
+      -DCMAKE_PREFIX_PATH=/path/to/Qt/6.12.0/macos -DCMAKE_INSTALL_PREFIX=$HOME/Qt/qtkeychain
 cmake --build qtkeychain-build
 cmake --install qtkeychain-build
 ```
 
-Проект ищет его в `~/Qt/qtkeychain` или в `-DQTKEYCHAIN_ROOT=<prefix>`. Отключить: `-DIWP_USE_KEYCHAIN=OFF`.
-(Windows: тот же набор команд, Linux: нужен пакет libsecret-1-dev.)
+Проект найдёт его в `~/Qt/qtkeychain` или по `-DQTKEYCHAIN_ROOT=<prefix>`. Без него всё работает, пароль
+спрашивается каждый раз (при настройке CMake будет предупреждение).
 
-## HTTP / Redfish
+### Профили поставки
 
-Роль типа `http` настраивается JSON-ом (`baseUrl`, `auth`, `username`, `trustedFingerprint`, ...,
-см. комментарий в `plugins/endpoint/http/httpendpoint.h`). Для самоподписанного сертификата BMC:
-подключиться, в ошибке будет SHA-256 отпечаток, вписать его в `trustedFingerprint`.
-HTTP без TLS поддерживается, но тогда логин и пароль идут по сети открытым текстом.
-
-## SSH
-
-Плагин `endpoint/ssh` запускает системный `ssh host sh` (нужен OpenSSH-клиент в PATH; на Windows 10/11 он
-входит в систему) и гоняет через него команды. Вся авторизация остаётся за OpenSSH: ключи, ssh-agent,
-FIDO2/YubiKey (`*-sk` ключи), сертификаты, `ProxyJump`, `~/.ssh/config`. Всё, что он спрашивает
-(пароль, passphrase, PIN, подтверждение ключа хоста, «коснитесь ключа»), перехватывается через
-`SSH_ASKPASS` (помощник `iwp_askpass` рядом с приложением) и показывается диалогами хоста.
-Пароли и passphrase можно сохранить в связке ключей, PIN и одноразовые коды не сохраняются никогда.
-Нужен OpenSSH >= 8.4 (`SSH_ASKPASS_REQUIRE`). Каждая команда выполняется в отдельной subshell
-(`cd` и переменные между командами не сохраняются).
-
-## Локализация
-
-Исходный язык всех строк - английский: в коде везде `tr("...")`, по умолчанию приложение английское.
-Каждый модуль (host, sdk, каждый плагин) держит свои переводы в `<модуль>/i18n/<цель>_<язык>.ts`
-и вшивает их в себя (`:/i18n/<цель>_<язык>.qm`), поэтому клиент получает переводы только тех плагинов, которые ему отданы.
-Нужен Qt Linguist Tools (компонент Qt, CMake-пакет `Qt6LinguistTools`); без него сборка идёт без переводов.
-
-Язык: `--lang ru`, переменная окружения `IWP_LANG=ru` или ключ `ui/language` в QSettings
-(`en` по умолчанию, `system` - язык ОС). Применяется при запуске.
-
-Правила: не склеивать строки (`tr("Port %1").arg(n)`), для статических таблиц `QT_TR_NOOP`,
-для множественного числа `tr("%n channel(s)", "", n)`, двусмысленные слова размечать `//: комментарий`.
-Протоколы, ключи модели и имена ролей не переводятся.
-
-Рабочий цикл: после правки строк собрать цель `update_translations` (lupdate пополняет все `.ts`),
-перевести в Qt Linguist, обычная сборка сама делает `.qm`. Новый язык: положить в `i18n/` модулей
-`<цель>_<язык>.ts` (скопировать русский и сменить `language=`) и заново запустить CMake.
-
-## Настройки
-
-Всё хранится в одном INI-файле через `AppSettings` (`host/src/appsettings.*`), ключи нигде больше не пишутся.
-Расположение: `--settings <файл>`, иначе `iwp.ini` рядом с exe (переносимый режим), иначе
-`AppConfigLocation` (Windows `%APPDATA%\IWP\...`, Linux `~/.config/IWP/...`, macOS `~/Library/Preferences/...`);
-полный путь виден в подсказке строки состояния. Сохраняются геометрия окна, размер разделителя, последнее устройство,
-язык и профили подключений (выбранный способ и настройки каждого способа отдельно, JSON). Пароли только в связке ключей.
-Файл версионируется (`meta/version`): при несовместимом изменении ключей поднять `AppSettings::kVersion`
-и добавить шаг в `migrate()`. Записи старой сборки (системное хранилище) подхватываются при первом запуске.
-
-## Ресурсы (иконки, картинки)
-
-Файлы из `<модуль>/resources/` (svg, png, jpg, шрифты) вшиваются в сам модуль и доступны как
-`:/iwp/<модуль>/<файл>` (`<модуль>` - цель CMake без `iwp_`): `host/resources/connect.svg` -> `:/iwp/host/connect.svg`,
-`plugins/device/console/resources/icon.svg` -> `:/iwp/console/icon.svg`. Для плагинов это делает `iwp_add_plugin()`
-само, клиент получает только ресурсы своих плагинов.
-
-- Иконки - SVG. Монохромные глифы рисовать чёрным: `iwp::themedIcon(":/iwp/host/connect.svg")` перекрасит
-  в цвет текста палитры (светлая/тёмная тема). Цветные картинки: `iwp::svgIcon(...)`.
-- Иконка устройства в списке: `IDeviceFactory::icon()` (API версии 3).
-- Значок приложения: окно и панель задач - `main.cpp`; файл exe - `host/platform/app.rc` + `app.ico` (Windows),
-  `app.icns` (macOS), `app.png` (Linux). Эти файлы генерирует `tools/make_app_icon.py` (нужен Pillow),
-  рисунок должен совпадать с `host/resources/app.svg`.
-- Чужие материалы только с совместимой лицензией, тексты лицензий в `THIRD_PARTY/`.
-- Очень большие данные лучше не вшивать, а собирать в отдельный `.rcc` (`qt_add_binary_resources`).
-
-## Поставка клиенту
-
-Профиль в `products/<name>.cmake` задаёт `IWP_PLUGINS`. Лишние плагины не компилируются вообще:
+Профиль `products/<имя>.cmake` задаёт список плагинов (`IWP_PLUGINS`); остальные не компилируются вообще:
 
 ```
 cmake -S . -B build -DIWP_PRODUCT=customer_example ...
 ```
 
-## Новый плагин
+## Запуск
 
-1. Папка `plugins/<kind>/<name>/` c `CMakeLists.txt`, `<name>.json` и классом-фабрикой.
-2. В `CMakeLists.txt`: `iwp_add_plugin(iwp_<name> SOURCES ... LIBS ...)`.
-3. В JSON обязательны `id`, `name`, `kind`, `version`, `apiVersion` (= `IWP_API_VERSION`).
-   Необязательное `order` (по умолчанию 100) задаёт место в списках устройств и способов подключения: меньше = выше.
-   Необязательное `group` (`instruments`, `servers`, `tools`, `simulators` или своё) — группа в списке устройств.
-4. Добавить `<kind>/<name>` в нужные `products/*.cmake`.
+```
+iwp_host [--lang ru|en|system] [--settings <файл.ini>]
+```
 
-Подробные шпаргалки: [docs/](docs/README.md) (устройство, транспорт, endpoint).
-Форма настроек подключения у транспорта/endpoint необязательна (`createConfigEditor()`, см. шпаргалки);
-без неё показывается строка JSON. Кнопка `{ }` рядом с формой открывает тот же конфиг как JSON.
+Язык также задаёт переменная `IWP_LANG` или ключ `ui/language` в настройках (по умолчанию английский).
+Файл настроек: `--settings`, иначе `iwp.ini` рядом с программой (переносимый режим), иначе каталог конфигурации ОС.
+Параметры графиков: `docs/plot.md`. Настройки, SSH, HTTP, пароли: [docs/configuration.md](docs/configuration.md).
 
-Устройство: наследоваться от `iwp::SessionBase`, в конструкторе описать `poll(...)`,
-в `onStart()` идентифицировать прибор и вызвать `setRunning()`, в `onCommand()` обрабатывать команды UI.
-Результаты - только через `model()->update(key, value, role)`. Страница работает только с `DeviceModel`.
+## Раздача бинарников
 
-## Правила
+Готовых установщиков и скриптов упаковки пока нет. Для передачи программы другим людям:
 
-- Сессия, endpoint-ы и транспорты живут в одном рабочем потоке. Не создавать QObject-детей
-  (сокеты, таймеры) в конструкторе транспорта - только в `doOpen()`.
-- Виджеты трогает только страница; сессия никогда.
-- Быстрые потоки (сотни кадров в секунду): сессия копит последние значения и публикует снимок
-  ~30 раз в секунду через `DeviceModel::updateMany()`, а не по событию на каждый кадр.
-- Устройства, которые только шлют данные: `watchdog()` + `kick()` вместо проверки ошибок запросов.
-- Менять интерфейсы SDK несовместимо = увеличить `IWP_API_VERSION`.
-- Плагины и хост собираются одним компилятором и одной версией Qt.
-- Пароли не хранятся в профилях и в плагинах: только через `ICredentialProvider` хоста (QtKeychain).
+1. Собрать `Release` с нужным `IWP_PRODUCT`.
+2. Добавить Qt: `macdeployqt` (macOS), `windeployqt` (Windows) или `linuxdeploy`. Если собрана вкладка «Терминал»,
+   упаковщик должен подхватить Qt WebEngine (`QtWebEngineProcess`, ресурсы); проверьте это на чистой машине.
+3. Положить рядом `THIRD_PARTY/` (тексты лицензий xterm.js и Qt) и уведомления Qt. Qt нужно поставлять динамическими
+   библиотеками, не статически.
+4. Рядом с программой должен лежать `iwp_askpass` (собирается вместе с SSH-плагинами).
 
-## Дальше
+## Тесты
 
-- `ScpiSessionBase`: `*IDN?`, очередь ошибок `SYST:ERR?`, `*OPC?`, типизированные query.
-- `transport/serial` (QSerialPort), `transport/udp`.
-- `endpoint/visa_*` (gpib, usb, serial, tcpip) на общей библиотеке `visa_core`, NI-VISA подгружается в рантайме.
-- `endpoint/ssh`: потоковые команды (`tail -f`, цикл на устройстве) как push-данные, автопереподключение,
-  мультиплексирование `ControlMaster` на mac/Linux.
-- Страницы устройств на QML, скрипт `tools/new_plugin.py`.
+Логика без Qt проверяется отдельными программами (запускать из корня репозитория):
+
+```
+g++ -std=c++17 -O2 -Isdk/src tools/plotcore_test.cpp -o /tmp/plotcore_test && /tmp/plotcore_test
+g++ -std=c++17 -Wall -Iplugins/device/console tools/historycore_test.cpp -o /tmp/historycore_test && /tmp/historycore_test
+```
+
+Автоматической сборки (CI) пока нет.
+
+## Архитектура
+
+```
+Transport (байты: TCP, UART, sim)  -> StreamEndpoint (SCPI-строки / raw)  \
+Endpoint-плагины (HTTP, SSH)        ---------------------------------------> SessionBase -> DeviceModel -> Page (UI)
+                                                                              (оркестратор)   (состояние)
+```
+
+Зависимости строго вниз: `плагин → sdk`, `host → sdk`; плагины не знают друг о друге. Устройство = сессия
+(рабочий поток) + страница (UI) + список ролей endpoint-ов; хост по ролям строит форму подключения.
+
+```
+sdk/        интерфейсы и базовые классы (iwp::sdk): единственная зависимость плагинов
+host/       приложение: загрузка плагинов, поток на устройство, окно, профили подключения
+plugins/    transport/, endpoint/, device/
+products/   профили поставки
+cmake/      iwp_add_plugin() и другие функции
+docs/       документация
+tools/      тесты логики, генератор значка, пример CMakePresets
+```
+
+Подробно: [docs/architecture.md](docs/architecture.md).
+
+## Документация
+
+- [Архитектура](docs/architecture.md): слои, потоки, правила
+- [Новый плагин устройства](docs/new-device-plugin.md), [транспорт](docs/new-transport-plugin.md), [endpoint](docs/new-endpoint-plugin.md)
+- [Консоль](docs/console.md): строка/SCPI-блоки и история, терминал, hex, SSH-терминал
+- [Графики](docs/plot.md)
+- [Настройки, пароли, HTTP и SSH](docs/configuration.md)
+- [Разработка](docs/development.md): переводы, ресурсы, значок приложения
+
+## Лицензия
+
+Лицензия пока не выбрана: файла `LICENSE` в репозитории нет, поэтому по умолчанию действуют все права автора.
+Сторонние компоненты и их лицензии перечислены в [THIRD_PARTY/](THIRD_PARTY/README.md).
