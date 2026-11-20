@@ -27,7 +27,7 @@ iwp_add_plugin(iwp_<name>
     SOURCES <name>plugin.h <name>plugin.cpp <name>session.h <name>session.cpp <name>page.h <name>page.cpp)
 ```
 
-`<name>.json` (`apiVersion` = `IWP_API_VERSION`, сейчас 4, иначе хост отклонит плагин)
+`<name>.json` (`apiVersion` = `IWP_API_VERSION`, сейчас 5, иначе хост отклонит плагин)
 ```json
 { "id": "<name>", "name": "Human readable name", "kind": "device", "version": "0.1.0", "apiVersion": 4 }
 ```
@@ -153,3 +153,20 @@ void MySession::onCommand(const QString &name, const QVariant &arg)   // ком�
 - Новые ключи настроек страницы не писать в `QSettings` напрямую, использовать `AppSettings` хоста.
 - Свой бинарный протокол: `createFramer(role)` или `"framing"` в конфигурации роли (`fixed`: header + length + CRC).
   Образец: `plugins/device/telemetry`.
+
+## Что сделать при отключении (`onStopping`)
+
+Когда пользователь нажимает «Отключить» или закрывает приложение, сессия вызывает
+`onStopping(done)` **пока порт ещё открыт**. Здесь отправляют «прощальные» команды:
+вернуть прибор в локальный режим, выключить выходы и т. п. Вызовите `done()`, когда прибор
+ответил: надёжнее всего послать запрос `*OPC?` и вызвать `done()` в его обработчике. Ответ
+доказывает, что предыдущие байты ушли по UART и прибор их обработал. Если прибор молчит,
+SDK закроет порт сам через 1,5 с. По умолчанию `done()` вызывается сразу.
+
+```cpp
+void MySession::onStopping(std::function<void()> done)
+{
+    write(kScpi, "SYST:LOC", 20);
+    query(kScpi, "*OPC?", [done](const iwp::Response &) { done(); }, 20, 1000);
+}
+```

@@ -1,0 +1,7 @@
+{
+    "id": "nge103b",
+    "name": "NGE103B SCPI power supply",
+    "kind": "device",
+    "version": "0.1.0",
+    "apiVersion": 5
+}

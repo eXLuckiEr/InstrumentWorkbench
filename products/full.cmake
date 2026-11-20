@@ -10,4 +10,5 @@ set(IWP_PLUGINS
     device/telemetry
     device/redfish
     device/linuxhost
+    device/nge103b
 )

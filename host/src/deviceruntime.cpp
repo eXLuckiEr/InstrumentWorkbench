@@ -1,5 +1,8 @@
 #include "deviceruntime.h"
 
+#include <QEventLoop>
+#include <QTimer>
+
 DeviceRuntime::DeviceRuntime(iwp::IDeviceFactory *device,
                              const QHash<QString, iwp::IEndpoint *> &endpoints,
                              const QHash<QString, QVariantMap> &configs,
@@ -24,9 +27,14 @@ DeviceRuntime::DeviceRuntime(iwp::IDeviceFactory *device,
 
 DeviceRuntime::~DeviceRuntime()
 {
+    // stop() is graceful (the session may still talk to the device), so wait for its
+    // `stopped` signal; the timeout only guards against a stuck worker thread.
     iwp::SessionBase *session = m_session;
-    QMetaObject::invokeMethod(session, [session] { session->stop(); },
-                              Qt::BlockingQueuedConnection);
+    QEventLoop loop;
+    connect(session, &iwp::SessionBase::stopped, &loop, &QEventLoop::quit);
+    QTimer::singleShot(3000, &loop, &QEventLoop::quit);
+    QMetaObject::invokeMethod(session, [session] { session->stop(); }, Qt::QueuedConnection);
+    loop.exec();
     m_thread.quit();
     m_thread.wait();    // the session is deleted by QThread::finished -> deleteLater
 }

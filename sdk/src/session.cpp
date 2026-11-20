@@ -102,19 +102,54 @@ void SessionBase::start()
     evaluate();
 }
 
+static constexpr int kStopTimeoutMs = 1500;
+
 void SessionBase::stop()
 {
-    if (!m_started)
+    if (m_stopping)
         return;
+    if (!m_started) {
+        emit stopped();
+        return;
+    }
     m_started = false;
     m_scheduler->stop();
     stopDogs();
+
+    const bool online = m_state == State::Running || m_state == State::Starting;
+    if (!online) {
+        m_stopping = true;
+        finishStop();
+        return;
+    }
+    // Let the subclass say goodbye while the link is still up. The timer is a
+    // safety net: a silent device must not block the disconnect.
+    m_stopping = true;
+    auto *guard = new QTimer(this);
+    guard->setSingleShot(true);
+    connect(guard, &QTimer::timeout, this, [this, guard] {
+        guard->deleteLater();
+        finishStop();
+    });
+    guard->start(kStopTimeoutMs);
+    onStopping([this, guard] {
+        guard->deleteLater();
+        finishStop();
+    });
+}
+
+void SessionBase::finishStop()
+{
+    if (!m_stopping)   // done() and the timeout both end up here; the first one wins
+        return;
+    m_stopping = false;
     for (IEndpoint *ep : std::as_const(m_endpoints)) {
         disconnect(ep, nullptr, this, nullptr);
         ep->close();
     }
     m_state = State::Idle;
     m_model->setStatus(DeviceModel::Status::Stopped);
+    emit stopped();
 }
 
 void SessionBase::evaluate()

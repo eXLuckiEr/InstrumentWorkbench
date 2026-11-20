@@ -60,7 +60,12 @@ public:
 
 public slots:
     void start();   // endpoints must be opened after start()
-    void stop();    // also closes the endpoints
+    // Graceful: calls onStopping() while the endpoints are still open, waits for its
+    // `done` (at most kStopTimeoutMs), then closes the endpoints and emits stopped().
+    void stop();
+
+signals:
+    void stopped();   // the endpoints are closed (also when stop() found nothing to do)
 
 protected:
     IEndpoint *endpoint(const QString &role) const { return m_endpoints.value(role, nullptr); }
@@ -70,6 +75,12 @@ protected:
     // then call setRunning() (or fail()). Default: start polling at once.
     virtual void onStart() { setRunning(); }
     virtual void onStopped() {}
+    // The user disconnects (or the application closes) while the device is online:
+    // the place for "return to local mode", "outputs off" and so on. Send the commands
+    // and call done() when the device has answered (for example after a "*OPC?" reply,
+    // which proves that earlier bytes left the port). Not called if the link is already
+    // down. Default: done() at once.
+    virtual void onStopping(std::function<void()> done) { done(); }
     // A command sent by the UI through DeviceModel::sendCommand().
     virtual void onCommand(const QString &name, const QVariant &arg);
 
@@ -94,6 +105,7 @@ protected:
 private:
     enum class State { Idle, Starting, Running, Offline, Failed };
     void evaluate();
+    void finishStop();
     void noteResult(const QString &role, bool ok);
     void startDogs();
     void stopDogs();
@@ -110,6 +122,7 @@ private:
     PollScheduler *m_scheduler;
     State m_state = State::Idle;
     bool m_started = false;
+    bool m_stopping = false;
     QString m_lastError;
     QHash<QString, int> m_failures;
 };

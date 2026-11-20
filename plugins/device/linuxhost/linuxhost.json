@@ -3,5 +3,5 @@
     "name": "Linux host monitor over SSH",
     "kind": "device",
     "version": "0.1.0",
-    "apiVersion": 4
+    "apiVersion": 5
 }
