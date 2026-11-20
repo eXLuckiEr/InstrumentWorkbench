@@ -1,5 +1,6 @@
 #include "sshplugin.h"
 
+#include "sshconfigeditor.h"
 #include "sshendpoint.h"
 
 QVariantMap SshPlugin::defaultConfig() const
@@ -18,3 +19,5 @@ QVariantMap SshPlugin::defaultConfig() const
 }
 
 iwp::IEndpoint *SshPlugin::create() { return new SshEndpoint; }
+
+iwp::ConfigEditor *SshPlugin::createConfigEditor(QWidget *parent) { return new SshConfigEditor(parent); }

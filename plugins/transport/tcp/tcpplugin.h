@@ -13,4 +13,5 @@ public:
     QString displayName() const override { return tr("TCP client"); }
     QVariantMap defaultConfig() const override;
     iwp::ITransport *create() override;
+    iwp::ConfigEditor *createConfigEditor(QWidget *parent) override;
 };

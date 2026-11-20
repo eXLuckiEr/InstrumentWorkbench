@@ -2,6 +2,7 @@
 
 #include <QSerialPortInfo>
 
+#include "serialconfigeditor.h"
 #include "serialtransport.h"
 
 QVariantMap SerialPlugin::defaultConfig() const
@@ -23,3 +24,8 @@ QVariantMap SerialPlugin::defaultConfig() const
 }
 
 iwp::ITransport *SerialPlugin::create() { return new SerialTransport; }
+
+iwp::ConfigEditor *SerialPlugin::createConfigEditor(QWidget *parent)
+{
+    return new SerialConfigEditor(parent);
+}

@@ -3,5 +3,5 @@
     "name": "SSH command channel (system OpenSSH)",
     "kind": "endpoint",
     "version": "0.1.0",
-    "apiVersion": 3
+    "apiVersion": 4
 }

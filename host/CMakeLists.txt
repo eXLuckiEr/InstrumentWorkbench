@@ -4,6 +4,8 @@ qt_add_executable(iwp_host
     src/pluginmanager.cpp
     src/deviceruntime.h
     src/deviceruntime.cpp
+    src/rolerow.h
+    src/rolerow.cpp
     src/appsettings.h
     src/appsettings.cpp
     src/translations.h

@@ -14,6 +14,7 @@ class QListWidget;
 class QPushButton;
 class QSplitter;
 class QVBoxLayout;
+class RoleRow;
 class QWidget;
 
 class MainWindow : public QMainWindow
@@ -32,16 +33,9 @@ private slots:
     void toggleConnection();
 
 private:
-    struct RoleRow {
-        iwp::EndpointRole role;
-        QComboBox *combo = nullptr;
-        QLineEdit *config = nullptr;
-    };
-
     iwp::IDeviceFactory *currentDevice() const;
     void rebuildRoleRows();
     void rebuildPage();
-    void loadProfile(RoleRow &row, const QString &deviceId);
     void saveProfile(const QString &deviceId);
     void connectNow();
     void disconnectNow();
@@ -51,7 +45,7 @@ private:
     PluginManager &m_plugins;
     CredentialStore *m_credentials = nullptr;
     DeviceRuntime *m_runtime = nullptr;
-    QList<RoleRow> m_rows;
+    QList<RoleRow *> m_rows;
 
     QSplitter *m_split = nullptr;
     QListWidget *m_deviceList = nullptr;

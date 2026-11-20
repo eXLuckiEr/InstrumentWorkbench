@@ -27,9 +27,9 @@ iwp_add_plugin(iwp_<name>
     SOURCES <name>plugin.h <name>plugin.cpp <name>session.h <name>session.cpp <name>page.h <name>page.cpp)
 ```
 
-`<name>.json` (`apiVersion` = `IWP_API_VERSION`, сейчас 3, иначе хост отклонит плагин)
+`<name>.json` (`apiVersion` = `IWP_API_VERSION`, сейчас 4, иначе хост отклонит плагин)
 ```json
-{ "id": "<name>", "name": "Human readable name", "kind": "device", "version": "0.1.0", "apiVersion": 3 }
+{ "id": "<name>", "name": "Human readable name", "kind": "device", "version": "0.1.0", "apiVersion": 4 }
 ```
 
 Фабрика (`<name>plugin.h`)

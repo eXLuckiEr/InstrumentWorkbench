@@ -59,4 +59,71 @@
         <translation>SSH (системный OpenSSH)</translation>
     </message>
 </context>
+<context>
+    <name>SshConfigEditor</name>
+    <message>
+        <source>Host</source>
+        <translation>Хост</translation>
+    </message>
+    <message>
+        <source>Port</source>
+        <translation>Порт</translation>
+    </message>
+    <message>
+        <source>User</source>
+        <translation>Пользователь</translation>
+    </message>
+    <message>
+        <source>as in ssh config</source>
+        <translation>как в настройках ssh</translation>
+    </message>
+    <message>
+        <source>Identity file</source>
+        <translation>Файл ключа</translation>
+    </message>
+    <message>
+        <source>ssh-agent or ssh config</source>
+        <translation>ssh-agent или настройки ssh</translation>
+    </message>
+    <message>
+        <source>Jump host</source>
+        <translation>Промежуточный хост</translation>
+    </message>
+    <message>
+        <source>optional, e.g. user@gateway</source>
+        <translation>необязательно, например user@gateway</translation>
+    </message>
+    <message>
+        <source>Host key checking</source>
+        <translation>Проверка ключа хоста</translation>
+    </message>
+    <message>
+        <source>As in ssh config</source>
+        <translation>Как в настройках ssh</translation>
+    </message>
+    <message>
+        <source>Ask</source>
+        <translation>Спрашивать</translation>
+    </message>
+    <message>
+        <source>Accept new</source>
+        <translation>Принимать новые</translation>
+    </message>
+    <message>
+        <source>Connect timeout</source>
+        <translation>Таймаут подключения</translation>
+    </message>
+    <message>
+        <source> s</source>
+        <translation> с</translation>
+    </message>
+    <message>
+        <source>ssh program</source>
+        <translation>Программа ssh</translation>
+    </message>
+    <message>
+        <source>Enter the host name or address</source>
+        <translation>Введите имя или адрес хоста</translation>
+    </message>
+</context>
 </TS>

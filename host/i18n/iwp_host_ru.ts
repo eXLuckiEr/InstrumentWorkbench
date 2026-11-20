@@ -106,6 +106,10 @@
         <source>No device plugins loaded</source>
         <translation>Плагины устройств не загружены</translation>
     </message>
+    <message>
+        <source>Role '%1': %2</source>
+        <translation>Роль «%1»: %2</translation>
+    </message>
 </context>
 <context>
     <name>PluginManager</name>
@@ -120,6 +124,21 @@
     <message>
         <source>does not implement any known IWP interface</source>
         <translation>не реализует ни одного известного интерфейса IWP</translation>
+    </message>
+</context>
+<context>
+    <name>RoleRow</name>
+    <message>
+        <source>- none -</source>
+        <translation>- нет -</translation>
+    </message>
+    <message>
+        <source>Edit as JSON</source>
+        <translation>Редактировать как JSON</translation>
+    </message>
+    <message>
+        <source>Role '%1': %2</source>
+        <translation>Роль «%1»: %2</translation>
     </message>
 </context>
 </TS>

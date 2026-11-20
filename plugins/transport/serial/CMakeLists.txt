@@ -15,6 +15,8 @@ iwp_add_plugin(iwp_serial
     SOURCES
         serialplugin.h
         serialplugin.cpp
+        serialconfigeditor.h
+        serialconfigeditor.cpp
         serialtransport.h
         serialtransport.cpp
     LIBS Qt6::SerialPort)

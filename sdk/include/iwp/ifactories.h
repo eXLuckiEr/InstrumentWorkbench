@@ -15,6 +15,7 @@ class QWidget;
 
 namespace iwp {
 
+class ConfigEditor;
 class DeviceModel;
 class SessionBase;
 
@@ -40,6 +41,8 @@ public:
     virtual QString displayName() const = 0;
     virtual QVariantMap defaultConfig() const { return {}; }
     virtual ITransport *create() = 0;          // no parent, ownership to caller
+    // Optional form for the settings (see iwp/configeditor.h). nullptr = the host shows JSON.
+    virtual ConfigEditor *createConfigEditor(QWidget *parent) { Q_UNUSED(parent) return nullptr; }
 };
 
 // Request/response channel plugin that is not a plain byte stream
@@ -54,6 +57,8 @@ public:
     virtual QString displayName() const = 0;
     virtual QVariantMap defaultConfig() const { return {}; }
     virtual IEndpoint *create() = 0;
+    // Optional form for the settings (see iwp/configeditor.h). nullptr = the host shows JSON.
+    virtual ConfigEditor *createConfigEditor(QWidget *parent) { Q_UNUSED(parent) return nullptr; }
 };
 
 // One concrete device: session (what to ask) + page (how it looks).
@@ -85,8 +90,8 @@ public:
 
 } // namespace iwp
 
-#define IWP_TRANSPORT_FACTORY_IID "org.iwp.ITransportFactory/1"
-#define IWP_ENDPOINT_FACTORY_IID  "org.iwp.IEndpointFactory/1"
+#define IWP_TRANSPORT_FACTORY_IID "org.iwp.ITransportFactory/2"
+#define IWP_ENDPOINT_FACTORY_IID  "org.iwp.IEndpointFactory/2"
 #define IWP_DEVICE_FACTORY_IID    "org.iwp.IDeviceFactory/3"
 Q_DECLARE_INTERFACE(iwp::ITransportFactory, IWP_TRANSPORT_FACTORY_IID)
 Q_DECLARE_INTERFACE(iwp::IEndpointFactory, IWP_ENDPOINT_FACTORY_IID)

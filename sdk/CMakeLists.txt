@@ -9,6 +9,7 @@ add_library(iwp_sdk SHARED
     include/iwp/bytes.h
     include/iwp/streamendpoint.h
     include/iwp/devicemodel.h
+    include/iwp/configeditor.h
     include/iwp/icons.h
     include/iwp/keyvaluepage.h
     include/iwp/session.h
@@ -18,6 +19,7 @@ add_library(iwp_sdk SHARED
     src/framers.cpp
     src/streamendpoint.cpp
     src/devicemodel.cpp
+    src/configeditor.cpp
     src/icons.cpp
     src/keyvaluepage.cpp
     src/session.cpp

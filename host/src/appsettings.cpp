@@ -117,21 +117,45 @@ void AppSettings::setLastDevice(const QString &deviceId)
 }
 
 // ----- connection profiles -----
+// profiles/<device>/<role>/choice
+// profiles/<device>/<role>/configs/<choice>     (one JSON text per way of connecting)
+// Older builds kept a single profiles/<device>/<role>/config for the chosen way: still read.
 
-AppSettings::Profile AppSettings::profile(const QString &deviceId, const QString &role) const
+namespace {
+QString profileBase(const QString &deviceId, const QString &role)
 {
-    const QString base = QStringLiteral("profiles/%1/%2/").arg(deviceId, role);
-    Profile p;
-    p.exists = m_s.contains(base + QStringLiteral("choice"));
-    p.choice = m_s.value(base + QStringLiteral("choice")).toString();
-    p.config = m_s.value(base + QStringLiteral("config")).toString();
-    return p;
+    return QStringLiteral("profiles/%1/%2/").arg(deviceId, role);
+}
+} // namespace
+
+std::optional<QString> AppSettings::choice(const QString &deviceId, const QString &role) const
+{
+    const QString key = profileBase(deviceId, role) + QStringLiteral("choice");
+    if (!m_s.contains(key))
+        return std::nullopt;
+    return m_s.value(key).toString();
 }
 
-void AppSettings::setProfile(const QString &deviceId, const QString &role, const Profile &profile)
+void AppSettings::setChoice(const QString &deviceId, const QString &role, const QString &choice)
 {
-    const QString base = QStringLiteral("profiles/%1/%2/").arg(deviceId, role);
-    m_s.setValue(base + QStringLiteral("choice"), profile.choice);
-    m_s.setValue(base + QStringLiteral("config"), profile.config);
+    m_s.setValue(profileBase(deviceId, role) + QStringLiteral("choice"), choice);
+    m_s.sync();
+}
+
+QString AppSettings::config(const QString &deviceId, const QString &role, const QString &choice) const
+{
+    const QString base = profileBase(deviceId, role);
+    const QString key = base + QStringLiteral("configs/") + choice;
+    if (m_s.contains(key))
+        return m_s.value(key).toString();
+    if (m_s.value(base + QStringLiteral("choice")).toString() == choice)   // single config of older builds
+        return m_s.value(base + QStringLiteral("config")).toString();
+    return {};
+}
+
+void AppSettings::setConfig(const QString &deviceId, const QString &role, const QString &choice,
+                            const QString &json)
+{
+    m_s.setValue(profileBase(deviceId, role) + QStringLiteral("configs/") + choice, json);
     m_s.sync();
 }

@@ -22,18 +22,7 @@
 #include "iwp/icons.h"
 #include "iwp/streamendpoint.h"
 #include "pluginmanager.h"
-
-namespace {
-
-constexpr int kDefaultsRole = Qt::UserRole + 1;
-
-QString toJson(const QVariantMap &map)
-{
-    return QString::fromUtf8(
-        QJsonDocument(QJsonObject::fromVariantMap(map)).toJson(QJsonDocument::Compact));
-}
-
-} // namespace
+#include "rolerow.h"
 
 MainWindow::MainWindow(PluginManager &plugins, QWidget *parent)
     : QMainWindow(parent), m_plugins(plugins)
@@ -107,6 +96,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
     AppSettings &settings = AppSettings::instance();
     settings.setWindowGeometry(saveGeometry());
     settings.setSplitterSizes(m_split->sizes());
+    saveProfile({});
     if (iwp::IDeviceFactory *dev = currentDevice())
         settings.setLastDevice(dev->deviceId());
     delete m_page;          // the page must die before the model it uses
@@ -152,6 +142,8 @@ void MainWindow::onDeviceChanged()
 
 void MainWindow::rebuildRoleRows()
 {
+    saveProfile({});   // keep what was typed for the device we are leaving
+    qDeleteAll(m_rows);
     m_rows.clear();
     while (QLayoutItem *item = m_rolesLayout->takeAt(0)) {
         delete item->widget();
@@ -164,54 +156,16 @@ void MainWindow::rebuildRoleRows()
 
     int gridRow = 0;
     for (const iwp::EndpointRole &role : dev->endpointRoles()) {
-        RoleRow row;
-        row.role = role;
-        row.combo = new QComboBox;
-        row.config = new QLineEdit;
-
-        if (role.optional)
-            row.combo->addItem(tr("- none -"), QString());
-        for (const auto &choice : m_plugins.choicesFor(role.kind)) {
-            QVariantMap defaults = choice.defaults;
-            for (auto it = role.defaults.cbegin(); it != role.defaults.cend(); ++it)
-                defaults.insert(it.key(), it.value());   // the device knows better
-            row.combo->addItem(choice.label, choice.id);
-            row.combo->setItemData(row.combo->count() - 1, defaults, kDefaultsRole);
-        }
-        loadProfile(row, dev->deviceId());
-
-        QComboBox *combo = row.combo;
-        QLineEdit *edit = row.config;
-        connect(combo, &QComboBox::currentIndexChanged, this, [combo, edit] {
-            edit->setText(toJson(combo->currentData(kDefaultsRole).toMap()));
-        });
-
-        auto *label = new QLabel(QStringLiteral("%1 (%2)").arg(role.role, role.kind));
-        label->setToolTip(role.description);
-        m_rolesLayout->addWidget(label, gridRow, 0);
-        m_rolesLayout->addWidget(combo, gridRow, 1);
-        m_rolesLayout->addWidget(edit, gridRow, 2);
+        auto *row = new RoleRow(role, dev->deviceId(), m_plugins, m_rolesLayout, gridRow++, this);
+        connect(row, &RoleRow::problem, this, &MainWindow::showStatus);
         m_rows.append(row);
-        ++gridRow;
     }
 }
 
-void MainWindow::loadProfile(RoleRow &row, const QString &deviceId)
+void MainWindow::saveProfile(const QString &)
 {
-    const AppSettings::Profile profile = AppSettings::instance().profile(deviceId, row.role.role);
-    const int idx = row.combo->findData(profile.choice);
-    if (idx >= 0)
-        row.combo->setCurrentIndex(idx);
-    row.config->setText(profile.exists && !profile.config.isEmpty()
-                            ? profile.config
-                            : toJson(row.combo->currentData(kDefaultsRole).toMap()));
-}
-
-void MainWindow::saveProfile(const QString &deviceId)
-{
-    for (const RoleRow &row : std::as_const(m_rows))
-        AppSettings::instance().setProfile(deviceId, row.role.role,
-                                           {true, row.combo->currentData().toString(), row.config->text()});
+    for (const RoleRow *row : std::as_const(m_rows))
+        row->save();
 }
 
 // ----- connect / disconnect -----
@@ -237,27 +191,26 @@ void MainWindow::connectNow()
         showStatus(message);
     };
 
-    for (const RoleRow &row : std::as_const(m_rows)) {
-        const QString choiceId = row.combo->currentData().toString();
+    for (const RoleRow *row : std::as_const(m_rows)) {
+        const iwp::EndpointRole &role = row->role();
+        const QString choiceId = row->choiceId();
         if (choiceId.isEmpty()) {
-            if (row.role.optional)
+            if (role.optional)
                 continue;
-            return abort(tr("Role '%1': nothing to connect to").arg(row.role.role));
+            return abort(tr("Role '%1': nothing to connect to").arg(role.role));
         }
-        QJsonParseError err;
-        const auto doc = QJsonDocument::fromJson(row.config->text().toUtf8(), &err);
-        if (err.error != QJsonParseError::NoError || !doc.isObject())
-            return abort(tr("Role '%1': invalid config JSON (%2)")
-                             .arg(row.role.role, err.errorString()));
-        iwp::IEndpoint *ep = m_plugins.createEndpoint(choiceId, row.role.kind);
+        const QString problem = row->validate();
+        if (!problem.isEmpty())
+            return abort(tr("Role '%1': %2").arg(role.role, problem));
+        iwp::IEndpoint *ep = m_plugins.createEndpoint(choiceId, role.kind);
         if (!ep)
-            return abort(tr("Role '%1': cannot create endpoint").arg(row.role.role));
+            return abort(tr("Role '%1': cannot create endpoint").arg(role.role));
         ep->setCredentialProvider(m_credentials);
         if (auto *stream = qobject_cast<iwp::StreamEndpoint *>(ep))
-            if (auto framer = dev->createFramer(row.role.role))
+            if (auto framer = dev->createFramer(role.role))
                 stream->setFramer(std::move(framer));
-        endpoints.insert(row.role.role, ep);
-        configs.insert(row.role.role, doc.object().toVariantMap());
+        endpoints.insert(role.role, ep);
+        configs.insert(role.role, row->config());
     }
     if (endpoints.isEmpty())
         return abort(tr("Nothing to connect"));
@@ -276,6 +229,7 @@ void MainWindow::connectNow()
         showStatus(text);
     });
 
+    m_deviceList->setEnabled(false);
     m_rolesHost->setEnabled(false);
     m_connectButton->setText(tr("Disconnect"));
     refreshIcons();
@@ -289,6 +243,7 @@ void MainWindow::disconnectNow()
     delete m_runtime;
     m_runtime = nullptr;
 
+    m_deviceList->setEnabled(true);
     m_rolesHost->setEnabled(true);
     m_connectButton->setText(tr("Connect"));
     refreshIcons();

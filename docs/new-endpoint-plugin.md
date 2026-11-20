@@ -20,7 +20,7 @@ find_package(Qt6 REQUIRED COMPONENTS Network)
 iwp_add_plugin(iwp_<name> SOURCES <name>plugin.h <name>plugin.cpp <name>endpoint.h <name>endpoint.cpp LIBS Qt6::Network)
 ```
 ```json
-{ "id": "<name>", "name": "My endpoint", "kind": "endpoint", "version": "0.1.0", "apiVersion": 3 }
+{ "id": "<name>", "name": "My endpoint", "kind": "endpoint", "version": "0.1.0", "apiVersion": 4 }
 ```
 ```cpp
 class MyPlugin : public QObject, public iwp::IEndpointFactory {
@@ -87,7 +87,37 @@ emit userActionRequired(tr("Touch your key"));                                  
 ```
 Ответ придёт в вашем потоке. Если провайдера нет (`credentials() == nullptr`), завершайте открытие понятной ошибкой.
 
-## 5. Подводные камни
+## 5. Форма настроек (необязательно)
+
+Пока формы нет, хост показывает настройки строкой JSON из `defaultConfig()`. Чтобы пользователь выбирал, а не помнил,
+сделайте форму рядом с остальными исходниками плагина (`<name>configeditor.h/.cpp`, добавить в `SOURCES`):
+
+```cpp
+class MyConfigEditor : public iwp::FormConfigEditor {
+    Q_OBJECT
+public:
+    explicit MyConfigEditor(QWidget *parent = nullptr) : iwp::FormConfigEditor(parent) {
+        addText("host", tr("Host"), "192.168.0.10");          // пустое поле = ключа в конфиге нет
+        addInt("port", tr("Port"), 1, 65535);
+        addChoice("parity", tr("Parity"),
+                  {{tr("None"), QStringLiteral("none")}, {tr("Even"), QStringLiteral("even")}});
+        addFile("identityFile", tr("Identity file"));          // поле + кнопка выбора файла
+        addFlag("keepAlive", tr("Keep alive"));
+    }
+    QString validate() const override {                        // "" = всё хорошо, иначе текст ошибки пользователю
+        return config().value("host").toString().isEmpty() ? tr("Enter the host") : QString();
+    }
+};
+```
+В фабрике: `iwp::ConfigEditor *createConfigEditor(QWidget *parent) override { return new MyConfigEditor(parent); }`.
+
+- Ключи формы = ключи `defaultConfig()`. Ключи, для которых поля нет (`extraArgs`, `terminator` от устройства), форма не трогает и отдаёт обратно.
+- Своё поле: `bind(key, getter, setter)` или `bindCombo(key, comboBox)` (пример: список портов с кнопкой «Обновить» в `serialconfigeditor.cpp`).
+- Хост сам добавляет кнопку `{ }` для правки того же конфига как JSON, поэтому редкие параметры не нужно выносить в форму.
+- Форма работает только в UI-потоке. Транспорт и сессия получают готовый `QVariantMap`.
+- Своя форма не обязана быть `FormConfigEditor`: достаточно наследника `iwp::ConfigEditor` (`setConfig`, `config`, `validate`, сигнал `changed`).
+
+## 6. Подводные камни
 
 - Любая потеря связи = `fail()`, иначе устройство не уйдёт в Offline.
 - Не писать секреты в логи, сообщения об ошибках и конфиг.

@@ -14,4 +14,5 @@ public:
     QString displayName() const override { return tr("SSH (system OpenSSH)"); }
     QVariantMap defaultConfig() const override;
     iwp::IEndpoint *create() override;
+    iwp::ConfigEditor *createConfigEditor(QWidget *parent) override;
 };

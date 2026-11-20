@@ -93,3 +93,20 @@ iwp::IEndpoint *PluginManager::createEndpoint(const QString &choiceId, const QSt
     }
     return nullptr;
 }
+
+iwp::ConfigEditor *PluginManager::createConfigEditor(const QString &choiceId, const QString &kind,
+                                                     QWidget *parent) const
+{
+    if (choiceId.startsWith(QLatin1String("transport/"))) {
+        const QString id = choiceId.mid(10);
+        for (auto *t : m_transports)
+            if (t->typeId() == id)
+                return t->createConfigEditor(parent);
+    } else if (choiceId.startsWith(QLatin1String("endpoint/"))) {
+        const QString id = choiceId.mid(9);
+        for (auto *e : m_endpointFactories)
+            if (e->typeId() == id && e->kind() == kind)
+                return e->createConfigEditor(parent);
+    }
+    return nullptr;
+}

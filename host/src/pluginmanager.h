@@ -7,6 +7,7 @@
 #include "iwp/ifactories.h"
 
 class QPluginLoader;
+class QWidget;
 
 // Finds, validates and loads plugins from a directory.
 class PluginManager : public QObject
@@ -41,6 +42,9 @@ public:
     QList<Choice> choicesFor(const QString &kind) const;
     // Creates an endpoint for the choice; nullptr if the choice is unknown.
     iwp::IEndpoint *createEndpoint(const QString &choiceId, const QString &kind) const;
+    // The settings form supplied by the plugin of the choice, nullptr if it has none.
+    iwp::ConfigEditor *createConfigEditor(const QString &choiceId, const QString &kind,
+                                          QWidget *parent) const;
 
 private:
     QList<iwp::ITransportFactory *> m_transports;

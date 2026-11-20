@@ -4,6 +4,8 @@ iwp_add_plugin(iwp_tcp
     SOURCES
         tcpplugin.h
         tcpplugin.cpp
+        tcpconfigeditor.h
+        tcpconfigeditor.cpp
         tcptransport.h
         tcptransport.cpp
     LIBS Qt6::Network)

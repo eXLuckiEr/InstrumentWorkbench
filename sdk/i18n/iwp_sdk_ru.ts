@@ -2,7 +2,7 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ru">
 <context>
-    <name>IEndpoint</name>
+    <name>iwp::IEndpoint</name>
     <message>
         <source>Endpoint is offline</source>
         <translation>Канал недоступен</translation>
@@ -17,7 +17,7 @@
     </message>
 </context>
 <context>
-    <name>ITransport</name>
+    <name>iwp::ITransport</name>
     <message>
         <source>Transport is already open</source>
         <translation>Транспорт уже открыт</translation>
@@ -32,7 +32,7 @@
     </message>
 </context>
 <context>
-    <name>KeyValuePage</name>
+    <name>iwp::KeyValuePage</name>
     <message>
         <source>Name</source>
         <translation>Имя</translation>
@@ -67,7 +67,7 @@
     </message>
 </context>
 <context>
-    <name>SessionBase</name>
+    <name>iwp::SessionBase</name>
     <message>
         <source>No data from '%1' for %2 ms</source>
         <translation>Нет данных от «%1» в течение %2 мс</translation>
@@ -75,6 +75,17 @@
     <message>
         <source>No endpoint '%1'</source>
         <translation>Нет канала «%1»</translation>
+    </message>
+</context>
+<context>
+    <name>iwp::JsonConfigEditor</name>
+    <message>
+        <source>Invalid JSON: %1</source>
+        <translation>Неверный JSON: %1</translation>
+    </message>
+    <message>
+        <source>JSON object expected</source>
+        <translation>Ожидается объект JSON</translation>
     </message>
 </context>
 </TS>

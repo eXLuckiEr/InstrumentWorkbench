@@ -1,5 +1,6 @@
 #include "tcpplugin.h"
 
+#include "tcpconfigeditor.h"
 #include "tcptransport.h"
 
 QVariantMap TcpPlugin::defaultConfig() const
@@ -8,3 +9,5 @@ QVariantMap TcpPlugin::defaultConfig() const
 }
 
 iwp::ITransport *TcpPlugin::create() { return new TcpTransport; }
+
+iwp::ConfigEditor *TcpPlugin::createConfigEditor(QWidget *parent) { return new TcpConfigEditor(parent); }

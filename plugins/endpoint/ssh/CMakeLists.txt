@@ -6,6 +6,8 @@ iwp_add_plugin(iwp_ssh
         sshplugin.cpp
         sshendpoint.h
         sshendpoint.cpp
+        sshconfigeditor.h
+        sshconfigeditor.cpp
     LIBS Qt6::Network)
 
 # Helper started by OpenSSH (SSH_ASKPASS) when it needs a password, a PIN or a

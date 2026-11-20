@@ -4,6 +4,7 @@
 #include <QSettings>
 #include <QString>
 #include <QStringList>
+#include <optional>
 
 // The only place that knows how and where application settings are stored.
 // INI file; the rest of the application uses the typed accessors below, so keys
@@ -38,14 +39,14 @@ public:
     QString lastDevice() const;
     void setLastDevice(const QString &deviceId);
 
-    // Connection profile of one endpoint role of one device.
-    struct Profile {
-        bool exists = false;
-        QString choice;   // e.g. "transport/serial"
-        QString config;   // JSON text, as shown in the connection row
-    };
-    Profile profile(const QString &deviceId, const QString &role) const;
-    void setProfile(const QString &deviceId, const QString &role, const Profile &profile);
+    // Connection profile of one endpoint role of one device: which way was chosen
+    // (e.g. "transport/serial") and, separately for each way, its settings as JSON text,
+    // so that switching between serial and TCP does not lose what was typed.
+    std::optional<QString> choice(const QString &deviceId, const QString &role) const;   // empty: never saved
+    void setChoice(const QString &deviceId, const QString &role, const QString &choice);
+    QString config(const QString &deviceId, const QString &role, const QString &choice) const;
+    void setConfig(const QString &deviceId, const QString &role, const QString &choice,
+                   const QString &json);
 
 private:
     explicit AppSettings(const QString &path);
