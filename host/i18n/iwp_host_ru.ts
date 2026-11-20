@@ -23,6 +23,10 @@
 <context>
     <name>MainWindow</name>
     <message>
+        <source>Search devices...</source>
+        <translation>Поиск устройств...</translation>
+    </message>
+    <message>
         <source>Instrument Workbench Platform</source>
         <translation>Instrument Workbench Platform</translation>
     </message>
@@ -113,6 +117,26 @@
 </context>
 <context>
     <name>PluginManager</name>
+    <message>
+        <source>Instruments</source>
+        <translation>Приборы</translation>
+    </message>
+    <message>
+        <source>Servers</source>
+        <translation>Серверы</translation>
+    </message>
+    <message>
+        <source>Tools</source>
+        <translation>Инструменты</translation>
+    </message>
+    <message>
+        <source>Simulators</source>
+        <translation>Симуляторы</translation>
+    </message>
+    <message>
+        <source>Other</source>
+        <translation>Прочее</translation>
+    </message>
     <message>
         <source>not an IWP plugin (no metadata)</source>
         <translation>не является плагином IWP (нет метаданных)</translation>

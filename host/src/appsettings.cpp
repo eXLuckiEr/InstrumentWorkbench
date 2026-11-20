@@ -115,6 +115,15 @@ void AppSettings::setSplitterSizes(const QList<int> &sizes)
     m_s.setValue("mainwindow/splitter", list);
 }
 
+QStringList AppSettings::collapsedGroups() const
+{
+    return m_s.value("mainwindow/collapsedGroups").toStringList();
+}
+void AppSettings::setCollapsedGroups(const QStringList &groups)
+{
+    m_s.setValue("mainwindow/collapsedGroups", groups);
+}
+
 QString AppSettings::lastDevice() const { return m_s.value("mainwindow/lastDevice").toString(); }
 void AppSettings::setLastDevice(const QString &deviceId)
 {

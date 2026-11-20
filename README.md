@@ -165,6 +165,7 @@ cmake -S . -B build -DIWP_PRODUCT=customer_example ...
 2. В `CMakeLists.txt`: `iwp_add_plugin(iwp_<name> SOURCES ... LIBS ...)`.
 3. В JSON обязательны `id`, `name`, `kind`, `version`, `apiVersion` (= `IWP_API_VERSION`).
    Необязательное `order` (по умолчанию 100) задаёт место в списках устройств и способов подключения: меньше = выше.
+   Необязательное `group` (`instruments`, `servers`, `tools`, `simulators` или своё) — группа в списке устройств.
 4. Добавить `<kind>/<name>` в нужные `products/*.cmake`.
 
 Подробные шпаргалки: [docs/](docs/README.md) (устройство, транспорт, endpoint).

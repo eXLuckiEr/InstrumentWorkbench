@@ -33,6 +33,9 @@ void PluginManager::loadFrom(const QString &directory)
         info.name = meta.value("name").toString(info.id);
         info.version = meta.value("version").toString();
         info.order = meta.value("order").toInt(100);
+        info.group = meta.value("group").toString().trimmed().toLower();
+        if (info.group.isEmpty())
+            info.group = QStringLiteral("other");
 
         if (meta.isEmpty()) {
             info.error = tr("not an IWP plugin (no metadata)");
@@ -54,6 +57,7 @@ void PluginManager::loadFrom(const QString &directory)
             if (auto *d = qobject_cast<iwp::IDeviceFactory *>(obj)) {
                 m_devices.append(d);
                 m_order.insert(d, info.order);
+                m_group.insert(d, info.group);
                 info.loaded = true;
             }
             if (!info.loaded)
@@ -87,9 +91,54 @@ void sortFactories(QList<T *> &list, const QHash<const void *, int> &order)
 
 } // namespace
 
+QString PluginManager::groupOf(const iwp::IDeviceFactory *device) const
+{
+    return m_group.value(device, QStringLiteral("other"));
+}
+
+QString PluginManager::groupTitle(const QString &id)
+{
+    if (id == QLatin1String("instruments")) return tr("Instruments");
+    if (id == QLatin1String("servers"))     return tr("Servers");
+    if (id == QLatin1String("tools"))       return tr("Tools");
+    if (id == QLatin1String("simulators"))  return tr("Simulators");
+    if (id == QLatin1String("other"))       return tr("Other");
+    return id.isEmpty() ? tr("Other") : id.left(1).toUpper() + id.mid(1);
+}
+
+int PluginManager::groupOrder(const QString &id)
+{
+    if (id == QLatin1String("instruments")) return 10;
+    if (id == QLatin1String("servers"))     return 20;
+    if (id == QLatin1String("tools"))       return 30;
+    if (id == QLatin1String("simulators"))  return 40;
+    if (id == QLatin1String("other"))       return 900;
+    return 500;                              // plugins' own groups: after the known ones
+}
+
 void PluginManager::sort()
 {
-    sortFactories(m_devices, m_order);
+    // Devices: by group (known order, then name), inside it like the other lists.
+    QCollator collator;
+    collator.setCaseSensitivity(Qt::CaseInsensitive);
+    collator.setNumericMode(true);
+    std::stable_sort(m_devices.begin(), m_devices.end(),
+                     [&](iwp::IDeviceFactory *a, iwp::IDeviceFactory *b) {
+        const QString ga = groupOf(a);
+        const QString gb = groupOf(b);
+        if (ga != gb) {
+            const int oa = groupOrder(ga);
+            const int ob = groupOrder(gb);
+            if (oa != ob)
+                return oa < ob;
+            return collator.compare(groupTitle(ga), groupTitle(gb)) < 0;
+        }
+        const int oa = m_order.value(a, 100);
+        const int ob = m_order.value(b, 100);
+        if (oa != ob)
+            return oa < ob;
+        return collator.compare(a->displayName(), b->displayName()) < 0;
+    });
     sortFactories(m_transports, m_order);
     sortFactories(m_endpointFactories, m_order);
 }

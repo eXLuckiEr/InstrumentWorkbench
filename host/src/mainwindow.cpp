@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include <QCloseEvent>
+#include <QFontMetrics>
 #include <QGuiApplication>
 #include <QComboBox>
 #include <QEvent>
@@ -10,9 +11,12 @@
 #include <QHBoxLayout>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
+#include <QShortcut>
+#include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 #include <QPushButton>
 #include <QSplitter>
 #include <QStatusBar>
@@ -35,10 +39,22 @@ MainWindow::MainWindow(PluginManager &plugins, QWidget *parent)
 
     m_split = new QSplitter;
     auto *split = m_split;
-    m_deviceList = new QListWidget;
-    for (auto *d : m_plugins.devices())
-        m_deviceList->addItem(d->displayName());
-    split->addWidget(m_deviceList);
+    // Left: search + the devices in groups (the plugins name their group in their json).
+    auto *left = new QWidget;
+    auto *leftLayout = new QVBoxLayout(left);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    m_deviceSearch = new QLineEdit;
+    m_deviceSearch->setPlaceholderText(tr("Search devices..."));
+    m_deviceSearch->setClearButtonEnabled(true);
+    m_deviceSearch->installEventFilter(this);
+    m_deviceList = new QTreeWidget;
+    m_deviceList->setHeaderHidden(true);
+    m_deviceList->setUniformRowHeights(true);
+    m_deviceList->setExpandsOnDoubleClick(false);   // a click on a group does it
+    leftLayout->addWidget(m_deviceSearch);
+    leftLayout->addWidget(m_deviceList, 1);
+    buildDeviceList();
+    split->addWidget(left);
 
     auto *right = new QWidget;
     auto *rightLayout = new QVBoxLayout(right);
@@ -62,18 +78,63 @@ MainWindow::MainWindow(PluginManager &plugins, QWidget *parent)
     // The device list never gives way to the page: when a device page needs more room than the
     // window has, the window grows (its layout minimum) instead of the list being squeezed.
     split->setChildrenCollapsible(false);
-    m_deviceList->setMinimumWidth(m_deviceList->sizeHintForColumn(0) + 2 * m_deviceList->frameWidth() + 24);
+    {
+        // The list never gets narrower than its longest entry (sizeHintForColumn() of a tree is protected).
+        QFont bold = m_deviceList->font();
+        bold.setBold(true);
+        int textWidth = 0;
+        for (QTreeWidgetItemIterator it(m_deviceList); *it; ++it) {
+            const bool group = !(*it)->data(0, Qt::UserRole).isValid();
+            textWidth = std::max(textWidth, QFontMetrics(group ? bold : m_deviceList->font())
+                                                .horizontalAdvance((*it)->text(0)));
+        }
+        left->setMinimumWidth(textWidth + m_deviceList->indentation() + m_deviceList->iconSize().width()
+                              + 2 * m_deviceList->frameWidth() + 40);
+    }
 
     connect(m_connectButton, &QPushButton::clicked, this, &MainWindow::toggleConnection);
-    connect(m_deviceList, &QListWidget::currentRowChanged, this, &MainWindow::onDeviceChanged);
+    connect(m_deviceList, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *cur) {
+        if (cur && cur->data(0, Qt::UserRole).isValid())
+            onDeviceChanged();
+    });
+    connect(m_deviceList, &QTreeWidget::itemClicked, this, [](QTreeWidgetItem *item) {
+        if (!item->data(0, Qt::UserRole).isValid())    // a group: fold / unfold
+            item->setExpanded(!item->isExpanded());
+    });
+    auto rememberFolding = [this](QTreeWidgetItem *) {
+        if (m_adjustingGroups)
+            return;
+        QStringList collapsed;
+        for (int i = 0; i < m_deviceList->topLevelItemCount(); ++i) {
+            QTreeWidgetItem *g = m_deviceList->topLevelItem(i);
+            if (!g->isExpanded())
+                collapsed << g->data(0, Qt::UserRole + 1).toString();
+        }
+        AppSettings::instance().setCollapsedGroups(collapsed);
+    };
+    connect(m_deviceList, &QTreeWidget::itemExpanded, this, rememberFolding);
+    connect(m_deviceList, &QTreeWidget::itemCollapsed, this, rememberFolding);
+    connect(m_deviceSearch, &QLineEdit::textChanged, this, [this] { applyDeviceFilter(); });
+    connect(m_deviceSearch, &QLineEdit::returnPressed, this, &MainWindow::selectFirstMatch);
+    new QShortcut(QKeySequence::Find, this, [this] {
+        m_deviceSearch->setFocus();
+        m_deviceSearch->selectAll();
+    });
 
-    if (m_deviceList->count() > 0) {
+    if (!m_plugins.devices().isEmpty()) {
         int start = 0;   // the device used last time, if its plugin is still there
         const QString last = AppSettings::instance().lastDevice();
         for (int i = 0; i < m_plugins.devices().size(); ++i)
             if (m_plugins.devices().at(i)->deviceId() == last)
                 start = i;
-        m_deviceList->setCurrentRow(start);
+        for (QTreeWidgetItemIterator it(m_deviceList); *it; ++it) {
+            if ((*it)->data(0, Qt::UserRole).isValid() && (*it)->data(0, Qt::UserRole).toInt() == start) {
+                for (QTreeWidgetItem *p = (*it)->parent(); p; p = p->parent())
+                    p->setExpanded(true);      // the chosen device is always visible
+                m_deviceList->setCurrentItem(*it);
+                break;
+            }
+        }
     } else
         rebuildPage();
 
@@ -123,10 +184,102 @@ void MainWindow::changeEvent(QEvent *event)
     QMainWindow::changeEvent(event);
 }
 
+void MainWindow::buildDeviceList()
+{
+    m_deviceList->clear();
+    const QStringList collapsed = AppSettings::instance().collapsedGroups();
+    QHash<QString, QTreeWidgetItem *> groups;
+    const auto &devices = m_plugins.devices();     // sorted: group, order, name
+    m_adjustingGroups = true;
+    for (int i = 0; i < devices.size(); ++i) {
+        const QString gid = m_plugins.groupOf(devices.at(i));
+        QTreeWidgetItem *group = groups.value(gid);
+        if (!group) {
+            group = new QTreeWidgetItem(m_deviceList);
+            group->setText(0, PluginManager::groupTitle(gid));
+            group->setData(0, Qt::UserRole + 1, gid);
+            group->setFlags(Qt::ItemIsEnabled);    // not selectable
+            QFont f = group->font(0);
+            f.setBold(true);
+            group->setFont(0, f);
+            groups.insert(gid, group);
+        }
+        auto *item = new QTreeWidgetItem(group);
+        item->setText(0, devices.at(i)->displayName());
+        item->setData(0, Qt::UserRole, i);         // index into PluginManager::devices()
+    }
+    for (int i = 0; i < m_deviceList->topLevelItemCount(); ++i) {
+        QTreeWidgetItem *g = m_deviceList->topLevelItem(i);
+        g->setExpanded(!collapsed.contains(g->data(0, Qt::UserRole + 1).toString()));
+    }
+    m_adjustingGroups = false;      // (icons: refreshIcons() once the window is built)
+}
+
+// What is typed into the search box: every word has to occur in the name, the id or the group.
+void MainWindow::applyDeviceFilter()
+{
+    const QStringList words = m_deviceSearch->text().simplified().toLower()
+                                  .split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    const QStringList collapsed = AppSettings::instance().collapsedGroups();
+    const auto &devices = m_plugins.devices();
+    m_adjustingGroups = true;
+    for (int i = 0; i < m_deviceList->topLevelItemCount(); ++i) {
+        QTreeWidgetItem *g = m_deviceList->topLevelItem(i);
+        const QString gid = g->data(0, Qt::UserRole + 1).toString();
+        int shown = 0;
+        for (int k = 0; k < g->childCount(); ++k) {
+            QTreeWidgetItem *c = g->child(k);
+            const int idx = c->data(0, Qt::UserRole).toInt();
+            const QString hay = (c->text(0) + QLatin1Char(' ') + devices.at(idx)->deviceId()
+                                 + QLatin1Char(' ') + g->text(0)).toLower();
+            bool match = true;
+            for (const QString &w : words)
+                match = match && hay.contains(w);
+            c->setHidden(!match);
+            shown += match ? 1 : 0;
+        }
+        g->setHidden(shown == 0);
+        g->setExpanded(words.isEmpty() ? !collapsed.contains(gid) : shown > 0);
+    }
+    m_adjustingGroups = false;
+}
+
+void MainWindow::selectFirstMatch()
+{
+    for (QTreeWidgetItemIterator it(m_deviceList); *it; ++it) {
+        QTreeWidgetItem *item = *it;
+        if (item->data(0, Qt::UserRole).isValid() && !item->isHidden()) {
+            m_deviceList->setCurrentItem(item);
+            m_deviceList->setFocus();
+            return;
+        }
+    }
+}
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_deviceSearch && event->type() == QEvent::KeyPress) {
+        const int key = static_cast<QKeyEvent *>(event)->key();
+        if (key == Qt::Key_Escape) {
+            m_deviceSearch->clear();
+            return true;
+        }
+        if (key == Qt::Key_Down) {          // from the search box into the list
+            m_deviceList->setFocus();
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
 void MainWindow::refreshIcons()
 {
-    for (int i = 0; i < m_deviceList->count() && i < m_plugins.devices().size(); ++i)
-        m_deviceList->item(i)->setIcon(m_plugins.devices().at(i)->icon());
+    const auto &devices = m_plugins.devices();
+    for (QTreeWidgetItemIterator it(m_deviceList); *it; ++it) {
+        const QVariant idx = (*it)->data(0, Qt::UserRole);
+        if (idx.isValid() && idx.toInt() < devices.size())
+            (*it)->setIcon(0, devices.at(idx.toInt())->icon());
+    }
     m_connectButton->setIcon(iwp::themedIcon(m_runtime ? QStringLiteral(":/iwp/host/disconnect.svg")
                                                        : QStringLiteral(":/iwp/host/connect.svg")));
 }
@@ -135,8 +288,11 @@ void MainWindow::showStatus(const QString &text) { statusBar()->showMessage(text
 
 iwp::IDeviceFactory *MainWindow::currentDevice() const
 {
-    const int row = m_deviceList->currentRow();
-    return (row >= 0 && row < m_plugins.devices().size()) ? m_plugins.devices().at(row) : nullptr;
+    const QTreeWidgetItem *item = m_deviceList->currentItem();
+    if (!item || !item->data(0, Qt::UserRole).isValid())
+        return nullptr;
+    const int idx = item->data(0, Qt::UserRole).toInt();
+    return (idx >= 0 && idx < m_plugins.devices().size()) ? m_plugins.devices().at(idx) : nullptr;
 }
 
 void MainWindow::onDeviceChanged()
@@ -242,6 +398,7 @@ void MainWindow::connectNow()
     });
 
     m_deviceList->setEnabled(false);
+    m_deviceSearch->setEnabled(false);
     for (RoleRow *row : std::as_const(m_rows))   // not the whole grid: the Connect button sits in it
         row->setLocked(true);
     m_connectButton->setText(tr("Disconnect"));
@@ -270,6 +427,7 @@ void MainWindow::disconnectNow()
     m_disconnecting = false;
 
     m_deviceList->setEnabled(true);
+    m_deviceSearch->setEnabled(true);
     for (RoleRow *row : std::as_const(m_rows))
         row->setLocked(false);
     m_connectButton->setText(tr("Connect"));

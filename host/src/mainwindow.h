@@ -10,7 +10,8 @@ class DeviceRuntime;
 class QComboBox;
 class QGridLayout;
 class QLineEdit;
-class QListWidget;
+class QTreeWidget;
+class QTreeWidgetItem;
 class QPushButton;
 class QSplitter;
 class QVBoxLayout;
@@ -27,6 +28,7 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
     void changeEvent(QEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     void onDeviceChanged();
@@ -41,6 +43,9 @@ private:
     void disconnectNow();
     void showStatus(const QString &text);
     void refreshIcons();   // glyphs follow the palette (light/dark)
+    void buildDeviceList();
+    void applyDeviceFilter();
+    void selectFirstMatch();
 
     PluginManager &m_plugins;
     CredentialStore *m_credentials = nullptr;
@@ -49,7 +54,9 @@ private:
     QList<RoleRow *> m_rows;
 
     QSplitter *m_split = nullptr;
-    QListWidget *m_deviceList = nullptr;
+    QLineEdit *m_deviceSearch = nullptr;
+    QTreeWidget *m_deviceList = nullptr;
+    bool m_adjustingGroups = false;   // expanding/collapsing by code, not a choice of the user
     QWidget *m_rolesHost = nullptr;
     QGridLayout *m_rolesLayout = nullptr;
     QPushButton *m_connectButton = nullptr;

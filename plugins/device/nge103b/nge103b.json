@@ -2,6 +2,7 @@
     "id": "nge103b",
     "name": "NGE103B SCPI power supply",
     "kind": "device",
+    "group": "instruments",
     "version": "0.1.0",
     "apiVersion": 6
 }

@@ -21,6 +21,7 @@ public:
         QString name;
         QString version;
         int order = 100;            // "order" in the plugin json: smaller = higher in lists
+        QString group;              // "group" in the plugin json: where its devices are listed
         bool loaded = false;
         QString error;
     };
@@ -45,6 +46,13 @@ public:
     const QList<iwp::IDeviceFactory *> &devices() const { return m_devices; }
     const QList<Info> &infos() const { return m_infos; }
 
+    // Device groups of the device list. A plugin names its group in its json ("group": "simulators");
+    // known ids have a translated title and a fixed place, any other id is shown as it is (first
+    // letter capitalised) after the known ones, a plugin without "group" goes to "other".
+    QString groupOf(const iwp::IDeviceFactory *device) const;
+    static QString groupTitle(const QString &id);
+    static int groupOrder(const QString &id);
+
     QList<Choice> choicesFor(const QString &kind) const;
     // Creates an endpoint for the choice; nullptr if the choice is unknown.
     iwp::IEndpoint *createEndpoint(const QString &choiceId, const QString &kind) const;
@@ -58,4 +66,5 @@ private:
     QList<iwp::IDeviceFactory *> m_devices;
     QList<Info> m_infos;
     QHash<const void *, int> m_order;   // factory -> "order" of its plugin
+    QHash<const void *, QString> m_group;   // factory -> "group" of its plugin
 };

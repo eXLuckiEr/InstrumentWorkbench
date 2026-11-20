@@ -41,6 +41,9 @@ public:
     void setWindowGeometry(const QByteArray &data);
     QList<int> splitterSizes() const;
     void setSplitterSizes(const QList<int> &sizes);
+    // Groups of the device list that the user has collapsed (group ids).
+    QStringList collapsedGroups() const;
+    void setCollapsedGroups(const QStringList &groups);
     QString lastDevice() const;
     void setLastDevice(const QString &deviceId);
 

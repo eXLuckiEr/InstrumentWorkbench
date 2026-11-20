@@ -2,6 +2,7 @@
     "id": "linuxhost",
     "name": "Linux host monitor over SSH",
     "kind": "device",
+    "group": "servers",
     "version": "0.1.0",
     "apiVersion": 6
 }
