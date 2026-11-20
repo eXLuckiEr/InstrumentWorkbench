@@ -45,6 +45,7 @@ private:
     PluginManager &m_plugins;
     CredentialStore *m_credentials = nullptr;
     DeviceRuntime *m_runtime = nullptr;
+    bool m_disconnecting = false;     // the runtime is being stopped (nested event loop)
     QList<RoleRow *> m_rows;
 
     QSplitter *m_split = nullptr;

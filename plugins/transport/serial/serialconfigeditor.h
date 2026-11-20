@@ -4,7 +4,8 @@
 class QComboBox;
 
 // Form for the settings of a serial port: port (list of what is connected right now, may be
-// typed), speed, frame format, flow control. Keys without a field (dtr, rts) stay in the JSON.
+// typed), speed, frame format, flow control (layout: serialconfigeditor.ui). Keys without a field
+// (dtr, rts) stay in the JSON.
 class SerialConfigEditor : public iwp::FormConfigEditor
 {
     Q_OBJECT

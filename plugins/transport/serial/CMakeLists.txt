@@ -17,6 +17,7 @@ iwp_add_plugin(iwp_serial
         serialplugin.cpp
         serialconfigeditor.h
         serialconfigeditor.cpp
+        serialconfigeditor.ui   # the form, drawn in Qt Designer
         serialtransport.h
         serialtransport.cpp
     LIBS Qt6::SerialPort)

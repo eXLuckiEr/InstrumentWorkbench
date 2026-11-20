@@ -1,6 +1,9 @@
 #include "mainwindow.h"
 
+#include <algorithm>
+
 #include <QCloseEvent>
+#include <QGuiApplication>
 #include <QComboBox>
 #include <QEvent>
 #include <QGridLayout>
@@ -43,21 +46,23 @@ MainWindow::MainWindow(PluginManager &plugins, QWidget *parent)
     m_rolesLayout = new QGridLayout(m_rolesHost);
     m_rolesLayout->setContentsMargins(0, 0, 0, 0);
     m_rolesLayout->setColumnStretch(2, 1);
+    // The Connect button sits in the first line of the first role (see rebuildRoleRows()), at the right.
     m_connectButton = new QPushButton(tr("Connect"));
-    auto *buttonRow = new QHBoxLayout;
-    buttonRow->addStretch(1);
-    buttonRow->addWidget(m_connectButton);
     m_pageHost = new QWidget;
     m_pageLayout = new QVBoxLayout(m_pageHost);
     m_pageLayout->setContentsMargins(0, 0, 0, 0);
     rightLayout->addWidget(m_rolesHost);
-    rightLayout->addLayout(buttonRow);
     rightLayout->addWidget(m_pageHost, 1);
     split->addWidget(right);
+    split->setStretchFactor(0, 0);
     split->setStretchFactor(1, 1);
     split->setSizes({180, 820});
     setCentralWidget(split);
     refreshIcons();
+    // The device list never gives way to the page: when a device page needs more room than the
+    // window has, the window grows (its layout minimum) instead of the list being squeezed.
+    split->setChildrenCollapsible(false);
+    m_deviceList->setMinimumWidth(m_deviceList->sizeHintForColumn(0) + 2 * m_deviceList->frameWidth() + 24);
 
     connect(m_connectButton, &QPushButton::clicked, this, &MainWindow::toggleConnection);
     connect(m_deviceList, &QListWidget::currentRowChanged, this, &MainWindow::onDeviceChanged);
@@ -93,6 +98,10 @@ MainWindow::~MainWindow() = default;
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    if (m_disconnecting) {   // the device is being stopped: close afterwards
+        event->ignore();
+        return;
+    }
     AppSettings &settings = AppSettings::instance();
     settings.setWindowGeometry(saveGeometry());
     settings.setSplitterSizes(m_split->sizes());
@@ -146,20 +155,21 @@ void MainWindow::rebuildRoleRows()
     qDeleteAll(m_rows);
     m_rows.clear();
     while (QLayoutItem *item = m_rolesLayout->takeAt(0)) {
-        delete item->widget();
+        if (item->widget() != m_connectButton)   // the button is reused
+            delete item->widget();
         delete item;
     }
 
     iwp::IDeviceFactory *dev = currentDevice();
-    if (!dev)
-        return;
-
     int gridRow = 0;
-    for (const iwp::EndpointRole &role : dev->endpointRoles()) {
-        auto *row = new RoleRow(role, dev->deviceId(), m_plugins, m_rolesLayout, gridRow++, this);
+    for (const iwp::EndpointRole &role : (dev ? dev->endpointRoles() : QList<iwp::EndpointRole>())) {
+        auto *row = new RoleRow(role, dev->deviceId(), m_plugins, m_rolesLayout, gridRow, this);
+        gridRow += RoleRow::kRows;
         connect(row, &RoleRow::problem, this, &MainWindow::showStatus);
         m_rows.append(row);
     }
+    // first line (the one with the way-of-connecting combo box), last column
+    m_rolesLayout->addWidget(m_connectButton, 0, RoleRow::kColumns - 1);
 }
 
 void MainWindow::saveProfile(const QString &)
@@ -172,6 +182,8 @@ void MainWindow::saveProfile(const QString &)
 
 void MainWindow::toggleConnection()
 {
+    if (m_disconnecting)
+        return;
     if (m_runtime)
         disconnectNow();
     else
@@ -230,7 +242,8 @@ void MainWindow::connectNow()
     });
 
     m_deviceList->setEnabled(false);
-    m_rolesHost->setEnabled(false);
+    for (RoleRow *row : std::as_const(m_rows))   // not the whole grid: the Connect button sits in it
+        row->setLocked(true);
     m_connectButton->setText(tr("Disconnect"));
     refreshIcons();
     rebuildPage();
@@ -238,13 +251,27 @@ void MainWindow::connectNow()
 
 void MainWindow::disconnectNow()
 {
+    // Deleting the runtime waits for the session to say goodbye in a nested event loop, so a second
+    // click on the button (or closing the window) would arrive in the middle of it and delete the
+    // runtime a second time. While it is going on, nothing else may start.
+    if (m_disconnecting)
+        return;
+    m_disconnecting = true;
+    m_connectButton->setEnabled(false);
+    QGuiApplication::setOverrideCursor(Qt::WaitCursor);
+
     delete m_page;          // the page must die before the model it uses
     m_page = nullptr;
     delete m_runtime;
     m_runtime = nullptr;
 
+    QGuiApplication::restoreOverrideCursor();
+    m_connectButton->setEnabled(true);
+    m_disconnecting = false;
+
     m_deviceList->setEnabled(true);
-    m_rolesHost->setEnabled(true);
+    for (RoleRow *row : std::as_const(m_rows))
+        row->setLocked(false);
     m_connectButton->setText(tr("Connect"));
     refreshIcons();
     showStatus(tr("Disconnected"));

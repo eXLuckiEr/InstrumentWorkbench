@@ -3,10 +3,12 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFileDialog>
+#include <QAbstractButton>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLayout>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
@@ -60,6 +62,7 @@ FormConfigEditor::FormConfigEditor(QWidget *parent) : ConfigEditor(parent)
 {
     m_form = new QFormLayout(this);
     m_form->setContentsMargins(0, 0, 0, 0);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 }
 
 FormConfigEditor::~FormConfigEditor() = default;
@@ -94,12 +97,18 @@ void FormConfigEditor::bind(const QString &key, std::function<QVariant()> get,
     m_bindings.append({key, std::move(get), std::move(set)});
 }
 
-QLineEdit *FormConfigEditor::addText(const QString &key, const QString &label,
-                                     const QString &placeholder)
+void FormConfigEditor::setupPage(QWidget *page)
 {
-    auto *edit = new QLineEdit;
-    edit->setPlaceholderText(placeholder);
-    m_form->addRow(label, edit);
+    // margins and stretching of the page come from Designer defaults; the host places the form
+    // flush at the left edge, full width, and it must not grow in height
+    if (QLayout *l = page->layout())
+        l->setContentsMargins(0, 0, 0, 0);
+    page->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    m_form->addRow(page);   // one row spanning the whole width
+}
+
+void FormConfigEditor::bindText(const QString &key, QLineEdit *edit)
+{
     bind(key,
          [edit]() -> QVariant {
              const QString text = edit->text().trimmed();
@@ -107,6 +116,47 @@ QLineEdit *FormConfigEditor::addText(const QString &key, const QString &label,
          },
          [edit](const QVariant &v) { edit->setText(v.toString()); });
     connect(edit, &QLineEdit::textChanged, this, [this] { emit changed(); });
+}
+
+void FormConfigEditor::bindInt(const QString &key, QSpinBox *box)
+{
+    bind(key, [box]() -> QVariant { return box->value(); },
+         [box](const QVariant &v) { box->setValue(v.toInt()); });
+    connect(box, &QSpinBox::valueChanged, this, [this] { emit changed(); });
+}
+
+void FormConfigEditor::bindFlag(const QString &key, QCheckBox *box)
+{
+    bind(key, [box]() -> QVariant { return box->isChecked(); },
+         [box](const QVariant &v) { box->setChecked(v.toBool()); });
+    connect(box, &QCheckBox::toggled, this, [this] { emit changed(); });
+}
+
+void FormConfigEditor::bindFile(const QString &key, QLineEdit *edit, QAbstractButton *browse,
+                                const QString &title)
+{
+    connect(browse, &QAbstractButton::clicked, this, [this, edit, title] {
+        const QString file = QFileDialog::getOpenFileName(this, title, edit->text());
+        if (!file.isEmpty())
+            edit->setText(file);
+    });
+    bindText(key, edit);
+}
+
+void FormConfigEditor::bindComboValues(const QString &key, QComboBox *combo, const QVariantList &values)
+{
+    for (int i = 0; i < values.size() && i < combo->count(); ++i)
+        combo->setItemData(i, values.at(i));
+    bindCombo(key, combo);
+}
+
+QLineEdit *FormConfigEditor::addText(const QString &key, const QString &label,
+                                     const QString &placeholder)
+{
+    auto *edit = new QLineEdit;
+    edit->setPlaceholderText(placeholder);
+    m_form->addRow(label, edit);
+    bindText(key, edit);
     return edit;
 }
 
@@ -124,18 +174,7 @@ QLineEdit *FormConfigEditor::addFile(const QString &key, const QString &label,
     layout->addWidget(browse);
     m_form->addRow(label, row);
 
-    connect(browse, &QPushButton::clicked, this, [this, edit, label] {
-        const QString file = QFileDialog::getOpenFileName(this, label, edit->text());
-        if (!file.isEmpty())
-            edit->setText(file);
-    });
-    bind(key,
-         [edit]() -> QVariant {
-             const QString text = edit->text().trimmed();
-             return text.isEmpty() ? QVariant() : QVariant(text);
-         },
-         [edit](const QVariant &v) { edit->setText(v.toString()); });
-    connect(edit, &QLineEdit::textChanged, this, [this] { emit changed(); });
+    bindFile(key, edit, browse, label);
     return edit;
 }
 
@@ -146,9 +185,7 @@ QSpinBox *FormConfigEditor::addInt(const QString &key, const QString &label, int
     box->setRange(minimum, maximum);
     box->setSuffix(suffix);
     m_form->addRow(label, box);
-    bind(key, [box]() -> QVariant { return box->value(); },
-         [box](const QVariant &v) { box->setValue(v.toInt()); });
-    connect(box, &QSpinBox::valueChanged, this, [this] { emit changed(); });
+    bindInt(key, box);
     return box;
 }
 
@@ -168,9 +205,7 @@ QCheckBox *FormConfigEditor::addFlag(const QString &key, const QString &label)
 {
     auto *box = new QCheckBox;
     m_form->addRow(label, box);
-    bind(key, [box]() -> QVariant { return box->isChecked(); },
-         [box](const QVariant &v) { box->setChecked(v.toBool()); });
-    connect(box, &QCheckBox::toggled, this, [this] { emit changed(); });
+    bindFlag(key, box);
     return box;
 }
 

@@ -112,4 +112,20 @@ public:
 - Своё поле: `bind(key, getter, setter)` или `bindCombo(key, comboBox)` (пример: список портов с кнопкой «Обновить» в `serialconfigeditor.cpp`).
 - Хост сам добавляет кнопку `{ }` для правки того же конфига как JSON, поэтому редкие параметры не нужно выносить в форму.
 - Форма работает только в UI-потоке. Транспорт и сессия получают готовый `QVariantMap`.
+
+**Форма в Qt Designer (`.ui`).** Если форму удобнее рисовать мышью, раскладку, подписи, диапазоны и списки
+выбора кладут в `.ui`, а в коде только привязывают ключи конфигурации (см. `SshConfigEditor`,
+`SerialConfigEditor`):
+
+```cpp
+auto *page = new QWidget;  Ui::MyEditor ui;  ui.setupUi(page);
+setupPage(page);                                        // вся страница становится формой
+bindText("host", ui.hostEdit);   bindInt("port", ui.portSpin);   bindFlag("tls", ui.tlsCheck);
+bindFile("identityFile", ui.fileEdit, ui.fileBrowse, tr("Identity file"));
+bindComboValues("parity", ui.parityCombo, {"none", "even", "odd"});   // значения по порядку пунктов из .ui
+```
+
+Ключи, к которым ничего не привязано, как и раньше, сохраняются нетронутыми. Файл `.ui` добавляют в `SOURCES`
+плагина.
+
 - Своя форма не обязана быть `FormConfigEditor`: достаточно наследника `iwp::ConfigEditor` (`setConfig`, `config`, `validate`, сигнал `changed`).

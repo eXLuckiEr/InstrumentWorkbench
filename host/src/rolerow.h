@@ -9,7 +9,7 @@
 class QComboBox;
 class QGridLayout;
 class QStackedWidget;
-class QToolButton;
+class QPushButton;
 class PluginManager;
 namespace iwp {
 class ConfigEditor;
@@ -23,7 +23,13 @@ class RoleRow : public QObject
 {
     Q_OBJECT
 public:
-    // Puts its widgets into row `gridRow` of `layout` (columns 0..3).
+    // Grid used by a row: columns 0..kColumns-1; "{ }" sits in kJsonColumn, the one after it is
+    // free for the Connect button of the first role. A role takes two grid rows (see rolerow.cpp).
+    static constexpr int kJsonColumn = 3;
+    static constexpr int kColumns = 5;
+    static constexpr int kRows = 2;
+
+    // Puts its widgets into rows `gridRow` and `gridRow + 1` of `layout`.
     RoleRow(const iwp::EndpointRole &role, const QString &deviceId, PluginManager &plugins,
             QGridLayout *layout, int gridRow, QObject *parent = nullptr);
 
@@ -32,6 +38,9 @@ public:
     QVariantMap config() const;        // settings of the chosen way
     QString validate() const;          // empty = fine, otherwise a message
     void save() const;                 // profile -> AppSettings
+    // Locks or unlocks the way to connect and its settings (while connected). Only this row's own
+    // widgets: the Connect button shares the grid and must stay usable.
+    void setLocked(bool locked);
 
 signals:
     void problem(const QString &message);
@@ -50,7 +59,7 @@ private:
 
     QComboBox *m_combo = nullptr;
     QStackedWidget *m_stack = nullptr;
-    QToolButton *m_jsonButton = nullptr;
+    QPushButton *m_jsonButton = nullptr;
     iwp::ConfigEditor *m_editor = nullptr;       // the plugin's form, or JSON when there is none
     iwp::JsonConfigEditor *m_json = nullptr;     // JSON view next to a plugin's form
     QString m_current;                           // choice shown now

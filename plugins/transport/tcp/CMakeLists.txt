@@ -6,6 +6,7 @@ iwp_add_plugin(iwp_tcp
         tcpplugin.cpp
         tcpconfigeditor.h
         tcpconfigeditor.cpp
+        tcpconfigeditor.ui      # the form, drawn in Qt Designer
         tcptransport.h
         tcptransport.cpp
     LIBS Qt6::Network)

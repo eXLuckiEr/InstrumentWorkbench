@@ -110,15 +110,18 @@ QWidget *TelemetryPage::buildPlotPanel()
     auto *pause = new QCheckBox(tr("Pause"));
     bar->addWidget(autoY);
     bar->addWidget(pause);
-    bar->addSpacing(12);
-    for (int i = 0; i < 6; ++i) {   // which curves are drawn
+    bar->addStretch(1);
+    // which curves are drawn: its own row, so that the page does not need a very wide window
+    auto *curves = new QHBoxLayout;
+    curves->addWidget(new QLabel(tr("Curves:")));
+    for (int i = 0; i < 6; ++i) {
         m_series[i] = new QCheckBox(QStringLiteral("%1").arg(i + 1));
         m_series[i]->setChecked(true);
         m_series[i]->setToolTip(tr("Show DATA%1").arg(i + 1));
-        bar->addWidget(m_series[i]);
+        curves->addWidget(m_series[i]);
         connect(m_series[i], &QCheckBox::toggled, this, &TelemetryPage::applySeries);
     }
-    bar->addStretch(1);
+    curves->addStretch(1);
 
     fillWindowChoices();
     connect(m_xaxis, &QComboBox::currentIndexChanged, this, [this] { fillWindowChoices(); });
@@ -132,6 +135,7 @@ QWidget *TelemetryPage::buildPlotPanel()
     connect(pause, &QCheckBox::toggled, m_plot, &iwp::PlotView::setPaused);
 
     lay->addLayout(bar);
+    lay->addLayout(curves);
     lay->addWidget(m_plot, 1);
     return panel;
 }

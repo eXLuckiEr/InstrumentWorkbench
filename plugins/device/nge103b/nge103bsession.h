@@ -47,6 +47,7 @@ private:
     void readValue(int channel, const QByteArray &command, const QString &key, Kind kind, int priority = 0);
     void readChannelState(int channel, int priority = 0);   // setpoints, armed, fuse
 
+    bool m_identified = false;   // *IDN? was answered (worker thread only)
     iwp::PlotBuffer *m_plot = nullptr;
     double m_lastVolt[kChannels] = {};   // worker thread only (poll callbacks)
 };

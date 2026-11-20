@@ -113,12 +113,14 @@ void Nge103bSession::readChannelState(int channel, int priority)
 
 void Nge103bSession::onStart()
 {
+    m_identified = false;   // the instrument may have been replaced since the last start
     m_plot->postClear();
     query(kScpi, "*IDN?", [this](const iwp::Response &r) {
         if (!r.ok) {
             fail(tr("No answer to *IDN?: %1").arg(r.error));
             return;
         }
+        m_identified = true;
         model()->update("idn", r.text(), kScpi);
         for (int ch = 1; ch <= kChannels; ++ch)
             readChannelState(ch);
@@ -129,6 +131,12 @@ void Nge103bSession::onStart()
 
 void Nge103bSession::onStopping(std::function<void()> done)
 {
+    // Nothing to hand back if the instrument never answered (not connected, wrong port): do not make
+    // the user wait for replies that will not come.
+    if (!m_identified) {
+        done();
+        return;
+    }
     // Give the front panel back to the user. The instrument goes to REMOTE on the first
     // command and stays there (keys locked) until it is told otherwise. Outputs are left
     // as they are on purpose: switching a load off on disconnect is a separate decision.

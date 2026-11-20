@@ -7,7 +7,7 @@
 #include <QLabel>
 #include <QSignalBlocker>
 #include <QStackedWidget>
-#include <QToolButton>
+#include <QPushButton>
 
 #include "appsettings.h"
 #include "iwp/configeditor.h"
@@ -47,17 +47,23 @@ RoleRow::RoleRow(const iwp::EndpointRole &role, const QString &deviceId, PluginM
     }
 
     m_stack = new QStackedWidget;
-    m_jsonButton = new QToolButton;
+    m_jsonButton = new QPushButton;   // the same kind of widget as the Connect button: same metrics
     m_jsonButton->setText(QStringLiteral("{ }"));
     m_jsonButton->setCheckable(true);
     m_jsonButton->setToolTip(tr("Edit as JSON"));
+    m_jsonButton->setFixedWidth(m_jsonButton->fontMetrics().horizontalAdvance(m_jsonButton->text()) + 28);   // compact, not the default push button width
 
     auto *label = new QLabel(QStringLiteral("%1 (%2)").arg(role.role, role.kind));
     label->setToolTip(role.description);
-    layout->addWidget(label, gridRow, 0, Qt::AlignTop);
-    layout->addWidget(m_combo, gridRow, 1, Qt::AlignTop);
-    layout->addWidget(m_stack, gridRow, 2);
-    layout->addWidget(m_jsonButton, gridRow, 3, Qt::AlignTop);
+
+    // Two grid rows per role. Line 1 holds widgets of one kind only (label, combo box, "{ }"), so Qt
+    // centres them against each other, the same on every platform. Line 2 is the settings form of
+    // the chosen way, over the full width: whatever its structure, it never has to line up with
+    // anything.   | label | combo | ........ stretch ........ | { } | (Connect: see MainWindow) |
+    layout->addWidget(label, gridRow, 0);
+    layout->addWidget(m_combo, gridRow, 1);
+    layout->addWidget(m_jsonButton, gridRow, kJsonColumn);
+    layout->addWidget(m_stack, gridRow + 1, 0, 1, kColumns);
 
     // the way chosen last time (if its plugin is still there)
     if (const auto saved = AppSettings::instance().choice(deviceId, role.role)) {
@@ -69,7 +75,7 @@ RoleRow::RoleRow(const iwp::EndpointRole &role, const QString &deviceId, PluginM
     showChoice(m_current);
 
     connect(m_combo, &QComboBox::currentIndexChanged, this, &RoleRow::onChoiceChanged);
-    connect(m_jsonButton, &QToolButton::toggled, this, &RoleRow::onJsonToggled);
+    connect(m_jsonButton, &QPushButton::toggled, this, &RoleRow::onJsonToggled);
 }
 
 QString RoleRow::choiceId() const { return m_combo->currentData().toString(); }
@@ -165,6 +171,13 @@ void RoleRow::onJsonToggled(bool on)
     }
     m_editor->setConfig(m_json->config());
     m_stack->setCurrentWidget(m_editor);
+}
+
+void RoleRow::setLocked(bool locked)
+{
+    m_combo->setEnabled(!locked);
+    m_stack->setEnabled(!locked);
+    m_jsonButton->setEnabled(!locked);
 }
 
 void RoleRow::save() const

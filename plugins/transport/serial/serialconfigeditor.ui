@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SerialConfigEditor</class>
+ <widget class="QWidget" name="SerialConfigEditor">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>746</width>
+    <height>104</height>
+   </rect>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="1" column="0">
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QLabel" name="dataBitsLabel">
+       <property name="text">
+        <string>Data bits</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="dataBitsCombo">
+       <item>
+        <property name="text">
+         <string>5</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>6</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>7</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>8</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="1" column="1">
+    <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <item>
+      <widget class="QLabel" name="parityLabel">
+       <property name="text">
+        <string>Parity</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="parityCombo">
+       <item>
+        <property name="text">
+         <string>None</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Even</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Odd</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Space</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Mark</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="1" column="2">
+    <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <item>
+      <widget class="QLabel" name="stopBitsLabel">
+       <property name="text">
+        <string>Stop bits</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="stopBitsCombo">
+       <item>
+        <property name="text">
+         <string>1</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>1.5 (Windows only)</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>2</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="1" column="4">
+    <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="30,70">
+     <item>
+      <widget class="QLabel" name="flowLabel">
+       <property name="text">
+        <string>Flow</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="flowCombo">
+       <item>
+        <property name="text">
+         <string>None</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Hardware (RTS/CTS)</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Software (XON/XOFF)</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="0" column="0" colspan="3">
+    <layout class="QHBoxLayout" name="horizontalLayout_6" stretch="10,80,10">
+     <item>
+      <widget class="QLabel" name="portLabel">
+       <property name="text">
+        <string>Port</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="portCombo">
+       <property name="editable">
+        <bool>true</bool>
+       </property>
+       <property name="insertPolicy">
+        <enum>QComboBox::InsertPolicy::NoInsert</enum>
+       </property>
+       <property name="minimumContentsLength">
+        <number>26</number>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="refreshButton">
+       <property name="text">
+        <string>Refresh</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="0" column="4">
+    <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="30,70">
+     <item>
+      <widget class="QLabel" name="baudLabel">
+       <property name="text">
+        <string>Baud rate</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="baudCombo">
+       <property name="editable">
+        <bool>true</bool>
+       </property>
+       <item>
+        <property name="text">
+         <string>1200</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>2400</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>4800</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>9600</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>19200</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>38400</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>57600</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>115200</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>230400</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>460800</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>921600</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>1000000</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item row="0" column="3">
+    <spacer name="horizontalSpacer_1">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>40</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item row="1" column="3">
+    <spacer name="horizontalSpacer_2">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>40</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
