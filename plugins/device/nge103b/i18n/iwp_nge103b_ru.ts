@@ -155,6 +155,22 @@ Check the load and the wiring. Continue?</source>
         <translation>выкл.</translation>
     </message>
     <message>
+        <source>Graph:</source>
+        <translation>График:</translation>
+    </message>
+    <message>
+        <source>voltage</source>
+        <translation>напряжение</translation>
+    </message>
+    <message>
+        <source>current</source>
+        <translation>ток</translation>
+    </message>
+    <message>
+        <source>power</source>
+        <translation>мощность</translation>
+    </message>
+    <message>
         <source>ok</source>
         <translation>ок</translation>
     </message>

@@ -5,6 +5,7 @@
 #include "iwp/devicemodel.h"
 
 class QTimer;
+namespace iwp { class PlotView; }
 namespace Ui { class ChannelCard; }   // channelcard.ui (Qt Designer)
 
 // One output channel of the NGE: measured V/A, mode, load, setpoint and current limit, protection
@@ -22,6 +23,7 @@ private:
     bool isStale(const char *name) const;
     void refresh();
     void updateEnabled();
+    void selectPlot(int index);
 
     iwp::DeviceModel *m_model;
     int m_channel;
@@ -29,4 +31,5 @@ private:
     std::unique_ptr<Ui::ChannelCard> ui;
     QTimer *m_voltTimer;
     QTimer *m_currTimer;
+    iwp::PlotView *m_spark = nullptr;   // cheap strip graph; null when the model has no plot
 };

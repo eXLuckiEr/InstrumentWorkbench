@@ -19,10 +19,26 @@ QByteArray number(double value) { return QByteArray::number(value, 'f', 3); }   
 Nge103bSession::Nge103bSession(const Endpoints &endpoints, iwp::DeviceModel *model, QObject *parent)
     : SessionBase(endpoints, model, parent)
 {
+    // Created here (UI thread, before the session moves to its worker); afterwards only postSample().
+    // Capacity 16384 points = hours of history at the poll rate.
+    m_plot = model->addPlot(QStringLiteral("channels"), 1 << 14);
+    static const struct { const char *suffix; const char *unit; QRgb color; } kinds[] = {
+        {"V", "V", 0x1976d2}, {"I", "A", 0xe65100}, {"P", "W", 0x6a1b9a}};
+    for (int ch = 1; ch <= kChannels; ++ch) {
+        for (const auto &k : kinds) {
+            iwp::PlotSeriesInfo info;
+            info.name = QStringLiteral("CH%1 %2").arg(ch).arg(QLatin1String(k.suffix));
+            info.unit = QLatin1String(k.unit);
+            info.color = QColor(k.color);
+            info.regular = false;
+            m_plot->addSeries(info);
+        }
+    }
+
     for (int ch = 1; ch <= kChannels; ++ch) {
         const QString p = QStringLiteral("ch%1_").arg(ch);
-        pollValue(kFastMs, ch, "MEAS:VOLT?", p + "v_meas", Kind::Number);
-        pollValue(kFastMs, ch, "MEAS:CURR?", p + "i_meas", Kind::Number);
+        pollValue(kFastMs, ch, "MEAS:VOLT?", p + "v_meas", Kind::Number, Sample::Volt);
+        pollValue(kFastMs, ch, "MEAS:CURR?", p + "i_meas", Kind::Number, Sample::Curr);
         pollValue(kMidMs, ch, "OUTP:MODE?", p + "mode", Kind::Text);
         pollValue(kMidMs, ch, "FUSE:TRIP?", p + "fuse_trip", Kind::Flag);
         pollValue(kMidMs, ch, "VOLT:PROT:TRIP?", p + "ovp_trip", Kind::Flag);
@@ -56,12 +72,24 @@ QVariant Nge103bSession::parse(Kind kind, const iwp::Response &response)
 }
 
 void Nge103bSession::pollValue(int periodMs, int channel, const QByteArray &command, const QString &key,
-                               Kind kind)
+                               Kind kind, Sample sample)
 {
     const QByteArray full = onChannel(channel, command);
-    poll(key, periodMs, kScpi, full, [this, key, kind](const iwp::Response &r) {
-        if (r.ok)
-            model()->update(key, parse(kind, r), kScpi);
+    poll(key, periodMs, kScpi, full, [this, key, kind, channel, sample](const iwp::Response &r) {
+        if (!r.ok)
+            return;
+        const QVariant value = parse(kind, r);
+        model()->update(key, value, kScpi);
+        if (sample == Sample::None)
+            return;
+        const double x = value.toDouble();
+        if (sample == Sample::Volt) {
+            m_lastVolt[channel - 1] = x;
+            m_plot->postSample(plotSeries(channel, kPlotVolt), float(x));
+        } else {
+            m_plot->postSample(plotSeries(channel, kPlotCurr), float(x));
+            m_plot->postSample(plotSeries(channel, kPlotPower), float(m_lastVolt[channel - 1] * x));
+        }
     });
 }
 
@@ -85,6 +113,7 @@ void Nge103bSession::readChannelState(int channel, int priority)
 
 void Nge103bSession::onStart()
 {
+    m_plot->postClear();
     query(kScpi, "*IDN?", [this](const iwp::Response &r) {
         if (!r.ok) {
             fail(tr("No answer to *IDN?: %1").arg(r.error));
