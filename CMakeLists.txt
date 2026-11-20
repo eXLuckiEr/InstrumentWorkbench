@@ -5,7 +5,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Svg OPTIONAL_COMPONENTS LinguistTools)
+# QRhi (the GPU plot renderer) is Qt Gui private API: the application is tied to the Qt build it
+# was compiled with, which is fine because Qt is shipped together with it. See docs/plot.md.
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Svg
+             OPTIONAL_COMPONENTS LinguistTools ShaderTools GuiPrivate)
 qt_standard_project_setup()   # AUTOMOC / AUTOUIC / AUTORCC on
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")

@@ -32,6 +32,11 @@ public:
     QString language() const;
     void setLanguage(const QString &code);
 
+    // Graphs (see docs/plot.md): frames per second (default 60; lower it on weak hardware) and
+    // the renderer: "auto" (GPU where it is useful), "gpu" or "cpu".
+    int plotFrameRate() const;
+    QString plotRenderer() const;
+
     QByteArray windowGeometry() const;
     void setWindowGeometry(const QByteArray &data);
     QList<int> splitterSizes() const;

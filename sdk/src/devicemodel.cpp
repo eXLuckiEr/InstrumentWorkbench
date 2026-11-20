@@ -2,6 +2,8 @@
 
 #include <QMetaObject>
 
+#include "iwp/plotbuffer.h"
+
 namespace iwp {
 
 DeviceModel::DeviceModel(QObject *parent) : QObject(parent) {}
@@ -19,6 +21,15 @@ bool DeviceModel::isStale(const QString &key) const
 }
 
 QStringList DeviceModel::keys() const { return m_entries.keys(); }
+
+PlotBuffer *DeviceModel::addPlot(const QString &name, qint64 capacity)
+{
+    if (PlotBuffer *existing = m_plots.value(name, nullptr))
+        return existing;
+    auto *buffer = new PlotBuffer(capacity, this);
+    m_plots.insert(name, buffer);
+    return buffer;
+}
 
 void DeviceModel::sendCommand(const QString &name, const QVariant &arg)
 {

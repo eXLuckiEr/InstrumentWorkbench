@@ -4,6 +4,7 @@
 
 #include "appsettings.h"
 #include "iwp/icons.h"
+#include "iwp/plotview.h"
 #include "mainwindow.h"
 #include "pluginmanager.h"
 #include "translations.h"
@@ -16,6 +17,13 @@ int main(int argc, char *argv[])
 
     QApplication::setWindowIcon(iwp::svgIcon(QStringLiteral(":/iwp/host/app.svg")));
     AppSettings::init(app.arguments());
+
+    // Graphs: [plot] fps=60, renderer=auto|gpu|cpu in the settings file
+    iwp::PlotView::setDefaultFrameRate(AppSettings::instance().plotFrameRate());
+    const QString renderer = AppSettings::instance().plotRenderer();
+    iwp::PlotView::setDefaultRenderer(renderer == QLatin1String("cpu")   ? iwp::PlotView::Renderer::Cpu
+                                      : renderer == QLatin1String("gpu") ? iwp::PlotView::Renderer::Gpu
+                                                                         : iwp::PlotView::Renderer::Auto);
 
     // Host and SDK strings first, so that even plugin loading errors are translated.
     Translations::installCore(Translations::requestedLanguage(app.arguments()));

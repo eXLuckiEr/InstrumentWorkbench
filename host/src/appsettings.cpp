@@ -91,6 +91,12 @@ void AppSettings::setLanguage(const QString &code)
     m_s.sync();
 }
 
+int AppSettings::plotFrameRate() const { return m_s.value("plot/fps", 60).toInt(); }
+QString AppSettings::plotRenderer() const
+{
+    return m_s.value("plot/renderer", QStringLiteral("auto")).toString().toLower();
+}
+
 QByteArray AppSettings::windowGeometry() const { return m_s.value("mainwindow/geometry").toByteArray(); }
 void AppSettings::setWindowGeometry(const QByteArray &data) { m_s.setValue("mainwindow/geometry", data); }
 

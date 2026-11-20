@@ -9,6 +9,8 @@
 
 namespace iwp {
 
+class PlotBuffer;
+
 // The only thing a device UI talks to. Lives in the UI (main) thread.
 //
 //   UI -> session:  sendCommand()          (queued into the session thread)
@@ -30,6 +32,12 @@ public:
     Status status() const { return m_status; }
     QString statusMessage() const { return m_message; }
     void sendCommand(const QString &name, const QVariant &arg = {});
+
+    // Sample history for graphs (see plotbuffer.h). Create the buffer in the session's
+    // constructor (it runs in the UI thread); the page finds it by name with plot(). The
+    // session then feeds it with PlotBuffer::postBatch() from its own thread.
+    PlotBuffer *addPlot(const QString &name, qint64 capacity = 1 << 20);
+    PlotBuffer *plot(const QString &name) const { return m_plots.value(name, nullptr); }
 
     // ---- session side (any thread) ----
     // `source` is normally the endpoint role the value came from, so that
@@ -58,6 +66,7 @@ private:
         bool stale = false;
     };
     QHash<QString, Entry> m_entries;
+    QHash<QString, PlotBuffer *> m_plots;
     Status m_status = Status::Stopped;
     QString m_message;
 };

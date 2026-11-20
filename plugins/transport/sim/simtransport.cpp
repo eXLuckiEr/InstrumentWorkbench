@@ -8,7 +8,6 @@
 #include "iwp/framers.h"
 
 static constexpr double kPi = 3.14159265358979323846;
-static constexpr int kFrameRate = 400;   // Hz
 static constexpr int kFrameSize = 32;
 
 void SimTransport::doOpen(const QVariantMap &config)
@@ -17,6 +16,8 @@ void SimTransport::doOpen(const QVariantMap &config)
                  ? Mode::Telemetry : Mode::Scpi;
     m_latencyMs = config.value("latencyMs", 15).toInt();
     m_errorRate = config.value("errorRate", 0.002).toDouble();
+    m_rate = qBound(1, config.value("rate", 400).toInt(), 200000);
+    m_glitch = config.value("glitch", true).toBool();
     m_rx.clear();
     m_clock.start();
     QTimer::singleShot(100, this, [this] {
@@ -107,17 +108,32 @@ void SimTransport::tickStream()
     if (state() != State::Open)
         return;
     // Emit as many frames as are due, so the rate is right even when the
-    // OS timer is coarse (Windows).
-    const qint64 due = m_streamClock.elapsed() * kFrameRate / 1000;
-    if (due - m_framesSent > kFrameRate)
-        m_framesSent = due - kFrameRate;
+    // OS timer is coarse (Windows). All frames of one tick go out as one chunk,
+    // like a UART/USB driver delivering what has accumulated.
+    const qint64 due = m_streamClock.elapsed() * m_rate / 1000;
+    if (due - m_framesSent > m_rate)
+        m_framesSent = due - m_rate;   // never more than one second of backlog
+    if (m_framesSent >= due)
+        return;
+    QByteArray chunk;
+    chunk.reserve(int((due - m_framesSent) * kFrameSize));
     while (m_framesSent < due) {
-        emitFrame();
+        appendFrame(chunk);
         ++m_framesSent;
+    }
+
+    // the driver splits data at arbitrary places
+    auto *rng = QRandomGenerator::global();
+    if (rng->bounded(3) == 0 && chunk.size() > 8) {
+        const int cut = rng->bounded(1, int(chunk.size()) - 1);
+        emit dataReceived(chunk.left(cut));
+        emit dataReceived(chunk.mid(cut));
+    } else {
+        emit dataReceived(chunk);
     }
 }
 
-void SimTransport::emitFrame()
+void SimTransport::appendFrame(QByteArray &out)
 {
     auto *rng = QRandomGenerator::global();
     QByteArray f(kFrameSize, 0);
@@ -126,10 +142,15 @@ void SimTransport::emitFrame()
     f[2] = char(m_counter);
     f[3] = char(1);                                  // id
 
-    const double t = double(m_framesSent) / kFrameRate;
+    const double t = double(m_framesSent) / m_rate;
     static const double freq[6] = {1.0, 2.0, 3.0, 5.0, 0.5, 0.2};
-    for (int i = 0; i < 6; ++i)
-        iwp::writeF32LE(f.data() + 4 + 4 * i, float((i + 1) * std::sin(2 * kPi * freq[i] * t)));
+    const bool spike = m_glitch && m_framesSent % (qint64(m_rate) * 3) == 0;
+    for (int i = 0; i < 6; ++i) {
+        double v = (i + 1) * std::sin(2 * kPi * freq[i] * t);
+        if (i == 1 && spike)
+            v += 8.0;
+        iwp::writeF32LE(f.data() + 4 + 4 * i, float(v));
+    }
 
     // multiplexed slot: counter % 16 selects which rare parameter this is
     const int slot = m_counter % 16;
@@ -146,12 +167,5 @@ void SimTransport::emitFrame()
     } else if (dice < 2 * m_errorRate)
         f.remove(rng->bounded(kFrameSize), 1);
 
-    // UART delivers data in arbitrary chunks
-    if (rng->bounded(3) == 0 && f.size() > 8) {
-        const int cut = rng->bounded(1, f.size() - 1);
-        emit dataReceived(f.left(cut));
-        emit dataReceived(f.mid(cut));
-    } else {
-        emit dataReceived(f);
-    }
+    out += f;
 }

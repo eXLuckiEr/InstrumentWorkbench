@@ -88,4 +88,11 @@
         <translation>Ожидается объект JSON</translation>
     </message>
 </context>
+<context>
+    <name>iwp::PlotView</name>
+    <message>
+        <source>PAUSED</source>
+        <translation>ПАУЗА</translation>
+    </message>
+</context>
 </TS>

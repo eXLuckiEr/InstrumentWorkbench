@@ -1,5 +1,7 @@
 #include "iwp/framers.h"
 
+#include <algorithm>
+
 #include <QtEndian>
 
 namespace iwp {
@@ -64,34 +66,40 @@ QList<QByteArray> FixedFrameFramer::feed(const QByteArray &incoming)
     if (len <= 0)
         return frames;
 
+    // Works on an offset and erases the consumed bytes once at the end: with a large chunk
+    // (fast streams) removing from the front frame by frame would be quadratic.
     m_buffer += incoming;
-    while (m_buffer.size() >= len) {
+    const char *base = m_buffer.constData();
+    const int total = int(m_buffer.size());
+    int pos = 0;
+    while (total - pos >= len) {
         if (!m_config.header.isEmpty()) {
-            const int pos = m_buffer.indexOf(m_config.header);
-            if (pos < 0) {
+            const int h = int(m_buffer.indexOf(m_config.header, pos));
+            if (h < 0) {
                 // no header anywhere: keep only a possible partial header at the end
-                const int keep = m_config.header.size() - 1;
-                const int drop = m_buffer.size() - keep;
+                const int keep = int(m_config.header.size()) - 1;
+                const int drop = std::max(0, total - pos - keep);
                 m_dropped += quint64(drop);
-                m_buffer.remove(0, drop);
+                pos += drop;
                 break;
             }
-            if (pos > 0) {
-                m_dropped += quint64(pos);
-                m_buffer.remove(0, pos);
+            if (h > pos) {
+                m_dropped += quint64(h - pos);
+                pos = h;
                 continue;   // re-check that a whole frame is still there
             }
         }
-        if (!crcOk(m_buffer.constData())) {
+        if (!crcOk(base + pos)) {
             ++m_crcErrors;   // corrupted frame or a header inside data
             ++m_dropped;
-            m_buffer.remove(0, 1);
+            ++pos;
             continue;
         }
-        frames.append(m_buffer.left(len));
-        m_buffer.remove(0, len);
+        frames.append(QByteArray(base + pos, len));
+        pos += len;
         ++m_frames;
     }
+    m_buffer.remove(0, pos);
     return frames;
 }
 

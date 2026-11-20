@@ -9,9 +9,12 @@ class QTimer;
 // UIs without hardware. Config "mode":
 //   "scpi" (default): line-based SCPI, LF terminated:
 //       *IDN?  MEAS:VOLT?  MEAS:TEMP?  SOUR:VOLT?  SOUR:VOLT <v>  OUTP?  OUTP ON|OFF
-//   "telemetry": continuous 400 Hz stream of 32-byte frames
+//   "telemetry": continuous stream of 32-byte frames
 //       [AA 55][counter][id][6 x float32 LE][mux u16 LE][CRC16-CCITT-FALSE LE]
-//       with rare corrupted frames and lost bytes ("errorRate", default 0.002)
+//       with rare corrupted frames and lost bytes ("errorRate", default 0.002).
+//       "rate": frames per second, 1..200000 (default 400; 100000 is the stress case, 3.2 MB/s).
+//       "glitch": true (default) puts a one-sample spike into DATA2 every 3 s, to check that a
+//       graph does not lose narrow peaks when it thins the data out.
 class SimTransport : public iwp::ITransport
 {
     Q_OBJECT
@@ -31,7 +34,7 @@ private:
     void reply(const QString &text);
     void startStream();
     void tickStream();
-    void emitFrame();
+    void appendFrame(QByteArray &out);
 
     Mode m_mode = Mode::Scpi;
     QByteArray m_rx;
@@ -45,4 +48,6 @@ private:
     qint64 m_framesSent = 0;
     quint8 m_counter = 0;
     double m_errorRate = 0.002;
+    int m_rate = 400;          // frames per second
+    bool m_glitch = true;
 };
