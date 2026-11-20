@@ -130,6 +130,20 @@ void MySession::onCommand(const QString &name, const QVariant &arg)   // ком�
   кнопки и поля вызывают `model->sendCommand("name", arg)`.
 - Тексты только через `tr()`; склейка строк запрещена (`tr("Port %1").arg(n)`).
 
+### Страница в Qt Designer (.ui)
+
+Раскладку удобнее рисовать мышью. Образец: `plugins/device/fakepsu` (`fakepsupage.ui`, `fakepsupage.h/.cpp`).
+
+1. Qt Creator: Add New... -> Qt -> Qt Designer Form (Widget), назвать `<name>page`; файл `.ui` лежит рядом с `.cpp` страницы.
+2. В Designer задать `objectName` виджетам осмысленно (`voltLcd`, `setpointSpin`): так они будут называться в коде (`ui->voltLcd`).
+3. Добавить `<name>page.ui` в `SOURCES` в `CMakeLists.txt`. Остальное сделает AUTOUIC (`ui_<name>page.h`).
+4. Страница наследует `QWidget`, держит `std::unique_ptr<Ui::MyPage> ui`, в конструкторе `ui->setupUi(this)`,
+   дальше только подключения к `DeviceModel` (`valueChanged`, `sendCommand`...). Деструктор объявить в `.h`, определить в `.cpp`.
+5. Имя класса в `.ui` (`<class>`) должно совпадать с именем класса страницы: оно же контекст переводов.
+   Тексты из Designer попадают в `.ts` через `update_translations` сами.
+6. В `.ui` только раскладка и свойства. Поведение (сигналы, слоты, формат значений) пишется в коде страницы.
+7. Нужный нестандартный виджет: в Designer «Promote to...» и указать свой класс и заголовок.
+
 ## 7. Подводные камни
 
 - Не блокировать рабочий поток (никаких `waitFor...` и `sleep` в сессии).

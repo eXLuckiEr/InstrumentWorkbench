@@ -5,4 +5,5 @@ iwp_add_plugin(iwp_fakepsu
         fakepsusession.h
         fakepsusession.cpp
         fakepsupage.h
-        fakepsupage.cpp)
+        fakepsupage.cpp
+        fakepsupage.ui)   # layout drawn in Qt Designer; AUTOUIC turns it into ui_fakepsupage.h

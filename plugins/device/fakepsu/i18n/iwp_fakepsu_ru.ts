@@ -35,6 +35,30 @@
         <source>Setpoint</source>
         <translation>Уставка</translation>
     </message>
+    <message>
+        <source>Stopped</source>
+        <translation>Остановлено</translation>
+    </message>
+    <message>
+        <source>Connecting</source>
+        <translation>Подключение</translation>
+    </message>
+    <message>
+        <source>Starting</source>
+        <translation>Запуск</translation>
+    </message>
+    <message>
+        <source>Running</source>
+        <translation>Работает</translation>
+    </message>
+    <message>
+        <source>Offline</source>
+        <translation>Не в сети</translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <translation>Ошибка</translation>
+    </message>
 </context>
 <context>
     <name>FakePsuPlugin</name>
