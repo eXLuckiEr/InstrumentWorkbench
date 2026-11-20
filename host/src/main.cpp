@@ -36,6 +36,7 @@ int main(int argc, char *argv[])
             module.remove(0, 3);
         Translations::installModule(module);
     }
+    plugins.sort();   // after translations: names are compared in the UI language
 
     MainWindow w(plugins);
     w.show();

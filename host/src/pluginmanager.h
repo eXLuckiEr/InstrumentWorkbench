@@ -1,4 +1,5 @@
 #pragma once
+#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -19,6 +20,7 @@ public:
         QString id;
         QString name;
         QString version;
+        int order = 100;            // "order" in the plugin json: smaller = higher in lists
         bool loaded = false;
         QString error;
     };
@@ -33,6 +35,10 @@ public:
     explicit PluginManager(QObject *parent = nullptr);
 
     void loadFrom(const QString &directory);
+    // Orders devices, transports and endpoints for the lists in the UI: by "order" from the plugin
+    // json (default 100), then by display name in the current language. Call after loading and
+    // after the plugins' translations are installed, before the lists are shown.
+    void sort();
 
     const QList<iwp::ITransportFactory *> &transports() const { return m_transports; }
     const QList<iwp::IEndpointFactory *> &endpointFactories() const { return m_endpointFactories; }
@@ -51,4 +57,5 @@ private:
     QList<iwp::IEndpointFactory *> m_endpointFactories;
     QList<iwp::IDeviceFactory *> m_devices;
     QList<Info> m_infos;
+    QHash<const void *, int> m_order;   // factory -> "order" of its plugin
 };

@@ -28,6 +28,9 @@ iwp_add_plugin(iwp_<name>
 { "id": "<name>", "name": "My transport", "kind": "transport", "version": "0.1.0", "apiVersion": 4 }
 ```
 
+Необязательное поле `"order"` (число, по умолчанию 100) задаёт место в списках: меньше = выше, при равенстве по названию.
+Принято: 0-9 служебное (консоль), 10-99 ваши избранные, 100 обычные.
+
 Фабрика
 ```cpp
 class MyPlugin : public QObject, public iwp::ITransportFactory {

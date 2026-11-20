@@ -22,6 +22,9 @@ iwp_add_plugin(iwp_<name> SOURCES <name>plugin.h <name>plugin.cpp <name>endpoint
 ```json
 { "id": "<name>", "name": "My endpoint", "kind": "endpoint", "version": "0.1.0", "apiVersion": 4 }
 ```
+
+Необязательное поле `"order"` (число, по умолчанию 100) задаёт место в списках: меньше = выше, при равенстве по названию.
+Принято: 0-9 служебное (консоль), 10-99 ваши избранные, 100 обычные.
 ```cpp
 class MyPlugin : public QObject, public iwp::IEndpointFactory {
     Q_OBJECT

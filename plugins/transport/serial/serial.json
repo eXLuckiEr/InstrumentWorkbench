@@ -2,6 +2,7 @@
     "id": "serial",
     "name": "Serial port (UART, RS-232/422/485 adapters)",
     "kind": "transport",
+    "order": 10,
     "version": "0.1.0",
     "apiVersion": 4
 }

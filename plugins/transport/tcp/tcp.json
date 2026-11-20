@@ -2,6 +2,7 @@
     "id": "tcp",
     "name": "TCP client transport",
     "kind": "transport",
+    "order": 20,
     "version": "0.1.0",
     "apiVersion": 4
 }

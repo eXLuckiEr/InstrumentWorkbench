@@ -3,7 +3,9 @@
 #include <QDir>
 #include <QJsonObject>
 #include <QLibrary>
+#include <QCollator>
 #include <QPluginLoader>
+#include <algorithm>
 
 #include "iwp/streamendpoint.h"
 #include "iwp/version.h"
@@ -30,6 +32,7 @@ void PluginManager::loadFrom(const QString &directory)
         info.id = meta.value("id").toString(file);
         info.name = meta.value("name").toString(info.id);
         info.version = meta.value("version").toString();
+        info.order = meta.value("order").toInt(100);
 
         if (meta.isEmpty()) {
             info.error = tr("not an IWP plugin (no metadata)");
@@ -40,14 +43,17 @@ void PluginManager::loadFrom(const QString &directory)
         } else if (QObject *obj = loader->instance()) {
             if (auto *t = qobject_cast<iwp::ITransportFactory *>(obj)) {
                 m_transports.append(t);
+                m_order.insert(t, info.order);
                 info.loaded = true;
             }
             if (auto *e = qobject_cast<iwp::IEndpointFactory *>(obj)) {
                 m_endpointFactories.append(e);
+                m_order.insert(e, info.order);
                 info.loaded = true;
             }
             if (auto *d = qobject_cast<iwp::IDeviceFactory *>(obj)) {
                 m_devices.append(d);
+                m_order.insert(d, info.order);
                 info.loaded = true;
             }
             if (!info.loaded)
@@ -60,6 +66,32 @@ void PluginManager::loadFrom(const QString &directory)
             delete loader;   // also unloads the library
         m_infos.append(info);
     }
+}
+
+namespace {
+
+template <typename T>
+void sortFactories(QList<T *> &list, const QHash<const void *, int> &order)
+{
+    QCollator collator;                       // follows the default locale = UI language
+    collator.setCaseSensitivity(Qt::CaseInsensitive);
+    collator.setNumericMode(true);            // "PSU 2" before "PSU 10"
+    std::stable_sort(list.begin(), list.end(), [&](T *a, T *b) {
+        const int oa = order.value(a, 100);
+        const int ob = order.value(b, 100);
+        if (oa != ob)
+            return oa < ob;
+        return collator.compare(a->displayName(), b->displayName()) < 0;
+    });
+}
+
+} // namespace
+
+void PluginManager::sort()
+{
+    sortFactories(m_devices, m_order);
+    sortFactories(m_transports, m_order);
+    sortFactories(m_endpointFactories, m_order);
 }
 
 QList<PluginManager::Choice> PluginManager::choicesFor(const QString &kind) const

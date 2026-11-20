@@ -2,6 +2,7 @@
     "id": "console",
     "name": "Raw console",
     "kind": "device",
+    "order": 0,
     "version": "0.1.0",
     "apiVersion": 4
 }
