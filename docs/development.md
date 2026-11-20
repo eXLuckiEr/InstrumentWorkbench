@@ -38,3 +38,17 @@
 
 Пример пресетов для командной строки: `tools/CMakePresets.example.json` (скопировать в корень как
 `CMakePresets.json`; Qt Creator с ними конфликтует, поэтому по умолчанию они отключены).
+
+## Лицензия исходных файлов
+
+Проект под MPL-2.0 (файл `LICENSE` в корне). Лицензия просит уведомление в каждом исходном файле либо, если это
+неудобно, файл `LICENSE` там, где получатель его увидит: корневого `LICENSE` достаточно. Если захотите
+добавлять заголовок в новые файлы (обычно это делают так), текст такой:
+
+```
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+// If a copy of the MPL was not distributed with this file, You can obtain one at
+// https://mozilla.org/MPL/2.0/.
+```
+
+Файлы сторонних авторов (xterm.js и т.п.) этот заголовок не получают и остаются под своей лицензией.

@@ -1,5 +1,8 @@
 # Third-party material
 
+The project itself is under the Mozilla Public License 2.0 (`LICENSE` in the repository root). The files listed
+below are not covered by it, they keep their own licences.
+
 Everything under `host/resources/` and `plugins/*/*/resources/` (icons) is drawn for this project.
 
 If you add icons, fonts or other assets from elsewhere, keep their licence text here
