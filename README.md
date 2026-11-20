@@ -52,7 +52,8 @@ cmake --build build
 
 `CMAKE_PREFIX_PATH` - каталог Qt вашего комплекта: `~/Qt/6.12.0/macos`, `C:/Qt/6.12.0/msvc2022_64`,
 `~/Qt/6.12.0/gcc_64`. Всё (приложение, SDK, плагины, помощник `iwp_askpass`) собирается в `build/bin/<Config>/`.
-Запуск: `build/bin/Release/iwp_host` (на macOS это `iwp_host.app`). Ninja необязателен: подойдёт любой генератор CMake.
+Запуск: `build/bin/Release/iwp_host` (на macOS это обычный исполняемый файл, не `.app`; приложение-бандл для
+раздачи собирается отдельно, см. «Раздача бинарников»). Ninja необязателен: подойдёт любой генератор CMake.
 
 **Qt Creator (рекомендуется):** File → Open File or Project → `CMakeLists.txt`, выбрать комплект Qt, в Run
 Configuration выбрать `iwp_host`. Параметры CMake задаются в Projects → Build → Initial CMake Parameters.
@@ -128,7 +129,8 @@ g++ -std=c++17 -O2 -Isdk/src tools/plotcore_test.cpp -o /tmp/plotcore_test && /t
 g++ -std=c++17 -Wall -Iplugins/device/console tools/historycore_test.cpp -o /tmp/historycore_test && /tmp/historycore_test
 ```
 
-Автоматической сборки (CI) пока нет.
+Те же тесты и сборка на Linux, macOS и Windows запускаются в CI (`.github/workflows/ci.yml`), по тегу `v*` готовится
+черновик релиза с пакетами: см. [docs/ci.md](docs/ci.md).
 
 ## Архитектура
 
@@ -161,6 +163,7 @@ tools/      тесты логики, генератор значка, приме
 - [Графики](docs/plot.md)
 - [Настройки, пароли, HTTP и SSH](docs/configuration.md)
 - [Разработка](docs/development.md): переводы, ресурсы, значок приложения
+- [CI и релизы](docs/ci.md): GitHub Actions, упаковка, подпись
 
 ## Лицензия
 
