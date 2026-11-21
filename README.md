@@ -162,6 +162,7 @@ tools/      тесты логики, генератор значка, приме
 - [Архитектура](docs/architecture.md): слои, потоки, правила
 - [Новый плагин устройства](docs/new-device-plugin.md), [транспорт](docs/new-transport-plugin.md), [endpoint](docs/new-endpoint-plugin.md)
 - [Консоль](docs/console.md): строка/SCPI-блоки и история, терминал, hex, SSH-терминал
+- [IWP RP2040](docs/rp2040.md): шаблон плагина для плат на прошивочной базе IWP-RP2040-base (инфо о прошивке, температура)
 - [CAN](docs/can.md): монитор CAN / CAN FD, адаптер SLCAN (CANable), последовательности кадров
 - [Графики](docs/plot.md)
 - [Настройки, пароли, HTTP и SSH](docs/configuration.md)

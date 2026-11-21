@@ -1,0 +1,11 @@
+iwp_add_plugin(iwp_rp2040
+    SOURCES
+        rp2040plugin.h
+        rp2040plugin.cpp
+        rp2040session.h
+        rp2040session.cpp
+        rp2040page.h
+        rp2040page.cpp
+        rp2040parse.h
+        picoboardview.h
+        picoboardview.cpp)
