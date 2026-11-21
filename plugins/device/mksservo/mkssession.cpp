@@ -191,7 +191,7 @@ QString MksSession::describe(int cmd, const quint8 *p, int n)
         break;
     }
     case mks::code::EncoderAccum: {
-        qint64 v;
+        std::int64_t v;
         if (mks::decodeI48(p, n, v))
             return QStringLiteral("%1 %2 counts (%3°)").arg(head).arg(v).arg(double(v) * 360.0 / 16384.0, 0, 'f', 2);
         break;
@@ -247,7 +247,7 @@ void MksSession::applyReply(Motor &m, int cmd, const quint8 *p, int n)
 {
     switch (cmd) {
     case mks::code::EncoderAccum: {
-        qint64 v;
+        std::int64_t v;
         if (mks::decodeI48(p, n, v)) { m.posCounts = v; m.havePos = true; }
         break;
     }
