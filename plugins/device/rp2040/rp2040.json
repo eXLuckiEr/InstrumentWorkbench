@@ -1,0 +1,9 @@
+{
+    "id": "rp2040",
+    "name": "IWP RP2040 base board (SCPI over USB)",
+    "kind": "device",
+    "group": "instruments",
+    "order": 20,
+    "version": "0.1.0",
+    "apiVersion": 6
+}

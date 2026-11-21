@@ -11,6 +11,7 @@ set(IWP_PLUGINS
     device/console
     device/can
     device/mksservo
+    device/rp2040
     device/fakepsu
     device/telemetry
     device/redfish
