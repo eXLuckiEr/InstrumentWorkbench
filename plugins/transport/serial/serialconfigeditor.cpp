@@ -1,6 +1,9 @@
 #include "serialconfigeditor.h"
 
 #include <QComboBox>
+#include <QGridLayout>
+#include <QLabel>
+#include <QSignalBlocker>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSerialPortInfo>
@@ -33,6 +36,45 @@ SerialConfigEditor::SerialConfigEditor(QWidget *parent) : iwp::FormConfigEditor(
                     {QStringLiteral("1"), QStringLiteral("1.5"), QStringLiteral("2")});
     bindComboValues(QStringLiteral("flow"), ui.flowCombo,
                     {QStringLiteral("none"), QStringLiteral("hardware"), QStringLiteral("software")});
+
+    // Everyday settings (port, speed) stay on the first line; the frame format (8N1 in nearly all
+    // cases) and the flow control are behind "Advanced".
+    m_advancedWidgets = {ui.dataBitsLabel, ui.dataBitsCombo, ui.parityLabel, ui.parityCombo,
+                         ui.stopBitsLabel, ui.stopBitsCombo, ui.flowLabel, ui.flowCombo};
+    m_grid = ui.gridLayout;
+    m_spacer = ui.horizontalSpacer_2;
+    m_advancedButton = new QPushButton;
+    m_advancedButton->setCheckable(true);
+    m_advancedButton->setFlat(true);
+    m_advancedButton->setFocusPolicy(Qt::NoFocus);
+    m_grid->addWidget(m_advancedButton, 0, 5);
+    setAdvanced(false);
+    connect(m_advancedButton, &QPushButton::toggled, this, &SerialConfigEditor::setAdvanced);
+}
+
+void SerialConfigEditor::setAdvanced(bool on)
+{
+    for (QWidget *w : std::as_const(m_advancedWidgets))
+        w->setVisible(on);
+    // the spacer of the hidden line must not keep the line open
+    m_spacer->changeSize(0, on ? 20 : 0, QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_grid->invalidate();
+    m_advancedButton->setText(on ? tr("Advanced ▲") : tr("Advanced ▼"));
+    QSignalBlocker block(m_advancedButton);
+    m_advancedButton->setChecked(on);
+}
+
+void SerialConfigEditor::setConfig(const QVariantMap &config)
+{
+    iwp::FormConfigEditor::setConfig(config);
+    // a non-standard frame format or flow control must not stay hidden
+    auto differs = [&config](const char *key, const QVariant &standard) {
+        const QVariant v = config.value(QLatin1String(key));
+        return v.isValid() && v.toString() != standard.toString();
+    };
+    if (differs("dataBits", 8) || differs("parity", QStringLiteral("none")) || differs("stopBits", QStringLiteral("1"))
+        || differs("flow", QStringLiteral("none")))
+        setAdvanced(true);
 }
 
 void SerialConfigEditor::refreshPorts()

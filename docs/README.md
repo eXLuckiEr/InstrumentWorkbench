@@ -7,6 +7,7 @@
 - [Новый транспорт](new-transport-plugin.md): байтовые каналы (UART, TCP, UDP, CAN...)
 - [Новый endpoint](new-endpoint-plugin.md): запрос-ответ (HTTP, SSH, VISA...), пароли и подтверждения
 - [Консоль](console.md): строка/SCPI-блоки и история, терминал, hex, SSH-терминал
+- [CAN](can.md): монитор CAN / CAN FD, адаптер SLCAN (CANable), последовательности кадров
 - [Графики](plot.md): `PlotBuffer`/`PlotView`, окно данных, прореживание, подключение в плагине
 - [Настройки, пароли, HTTP и SSH](configuration.md)
 - [Разработка](development.md): переводы, ресурсы, значок приложения

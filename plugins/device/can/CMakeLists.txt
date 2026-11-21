@@ -1,0 +1,13 @@
+iwp_add_plugin(iwp_can
+    SOURCES
+        canplugin.h
+        canplugin.cpp
+        cansession.h
+        cansession.cpp
+        canpage.h
+        canpage.cpp
+        cantracemodel.h
+        cantracemodel.cpp
+        canidmodel.h
+        canidmodel.cpp
+        canformat.h)

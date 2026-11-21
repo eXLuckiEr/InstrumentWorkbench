@@ -1,0 +1,9 @@
+{
+    "id": "can",
+    "name": "CAN / CAN FD bus monitor",
+    "kind": "device",
+    "group": "tools",
+    "order": 5,
+    "version": "0.1.0",
+    "apiVersion": 6
+}

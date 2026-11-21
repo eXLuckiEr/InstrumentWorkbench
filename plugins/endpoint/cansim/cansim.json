@@ -1,0 +1,7 @@
+{
+    "id": "cansim",
+    "name": "CAN simulator (echo and traffic generator)",
+    "kind": "endpoint",
+    "version": "0.1.0",
+    "apiVersion": 6
+}
