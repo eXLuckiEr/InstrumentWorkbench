@@ -32,6 +32,14 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -Iplugins/device/console tools/historycore_test.cpp -o /tmp/historycore_test
           /tmp/historycore_test
+      - name: cancore_test
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Isdk/include -Iplugins/endpoint/canslcan tools/cancore_test.cpp -o /tmp/cancore_test
+          /tmp/cancore_test
+      - name: mkscore_test
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Isdk/include -Iplugins/device/mksservo tools/mkscore_test.cpp -o /tmp/mkscore_test
+          /tmp/mkscore_test
 
   build:
     name: Build (${{ matrix.name }})

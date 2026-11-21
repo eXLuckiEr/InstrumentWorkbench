@@ -1,0 +1,9 @@
+iwp_add_plugin(iwp_mksservo
+    SOURCES
+        mksplugin.h
+        mksplugin.cpp
+        mkssession.h
+        mkssession.cpp
+        mkspage.h
+        mkspage.cpp
+        mkscore.h)

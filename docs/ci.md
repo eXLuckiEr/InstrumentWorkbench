@@ -4,7 +4,7 @@
 
 | Когда | Что запускается |
 |-------|-----------------|
-| push в `main`, pull request, вручную (Actions → CI → Run workflow) | тесты логики (`plotcore_test`, `historycore_test`) и сборка на Linux, macOS, Windows; на macOS и Windows ещё упаковка |
+| push в `main`, pull request, вручную (Actions → CI → Run workflow) | тесты логики (`plotcore_test`, `historycore_test`, `cancore_test`) и сборка на Linux, macOS, Windows; на macOS и Windows ещё упаковка |
 | тег `v*` (например `v0.1.0`) | то же, затем **черновик** релиза с пакетами (zip) |
 
 Пакеты каждой сборки лежат во вкладке Actions → запуск → Artifacts (14 дней).

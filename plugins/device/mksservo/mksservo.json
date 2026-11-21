@@ -1,0 +1,9 @@
+{
+    "id": "mksservo",
+    "name": "MKS SERVO42D/57D stepper drivers (CAN)",
+    "kind": "device",
+    "group": "instruments",
+    "order": 100,
+    "version": "0.1.0",
+    "apiVersion": 6
+}

@@ -6,7 +6,11 @@ set(IWP_PLUGINS
     endpoint/http
     endpoint/ssh
     endpoint/sshshell
+    endpoint/canslcan
+    endpoint/cansim
     device/console
+    device/can
+    device/mksservo
     device/fakepsu
     device/telemetry
     device/redfish

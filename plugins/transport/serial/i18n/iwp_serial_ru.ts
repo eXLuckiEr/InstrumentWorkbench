@@ -26,6 +26,14 @@
 <context>
     <name>SerialConfigEditor</name>
     <message>
+        <source>Advanced ▼</source>
+        <translation>Дополнительно ▼</translation>
+    </message>
+    <message>
+        <source>Advanced ▲</source>
+        <translation>Дополнительно ▲</translation>
+    </message>
+    <message>
         <source>no ports found</source>
         <translation>порты не найдены</translation>
     </message>

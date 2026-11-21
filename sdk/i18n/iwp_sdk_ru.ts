@@ -95,4 +95,15 @@
         <translation>ПАУЗА</translation>
     </message>
 </context>
+<context>
+    <name>iwp::CanEndpoint</name>
+    <message>
+        <source>Internal error: bad CAN frame</source>
+        <translation>Внутренняя ошибка: неверный кадр CAN</translation>
+    </message>
+    <message>
+        <source>The adapter did not accept the frame</source>
+        <translation>Адаптер не принял кадр</translation>
+    </message>
+</context>
 </TS>

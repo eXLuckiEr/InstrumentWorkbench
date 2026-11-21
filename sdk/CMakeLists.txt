@@ -16,8 +16,11 @@ add_library(iwp_sdk SHARED
     include/iwp/plotbuffer.h
     include/iwp/plotview.h
     include/iwp/ifactories.h
+    include/iwp/cancore.h
+    include/iwp/canendpoint.h
     src/itransport.cpp
     src/endpoint.cpp
+    src/canendpoint.cpp
     src/framers.cpp
     src/streamendpoint.cpp
     src/devicemodel.cpp

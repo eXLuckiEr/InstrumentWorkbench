@@ -12,9 +12,10 @@
 | Серверы | `redfish` | монитор BMC по Redfish: шасси, температуры, питание |
 | Серверы | `linuxhost` | датчики Linux-узла по SSH |
 | Инструменты | `console` | сырой поток байт: строки/SCPI-блоки с историей, полноценный терминал (xterm.js), hex |
+| Инструменты | `can` | монитор и отправка кадров CAN / CAN FD: поток и вид по ID, фильтр, последовательности кадров |
 | Симуляторы | `fakepsu`, `telemetry` | SCPI-источник питания; поток 32-байтных кадров 400 Гц |
 
-Каналы: транспорты `tcp`, `serial`, `sim`; endpoint-ы `http`, `ssh` (команды), `sshshell` (интерактивная оболочка).
+Каналы: транспорты `tcp`, `serial`, `sim`; endpoint-ы `http`, `ssh` (команды), `sshshell` (интерактивная оболочка), `canslcan` (CAN-адаптер в режиме SLCAN), `cansim` (симулятор CAN).
 
 Дополнительно: быстрые графики (`PlotView`), профили подключения, переводы (английский и русский),
 профили поставки (в бинарник попадают только нужные плагины).
@@ -127,6 +128,7 @@ iwp_host [--lang ru|en|system] [--settings <файл.ini>]
 ```
 g++ -std=c++17 -O2 -Isdk/src tools/plotcore_test.cpp -o /tmp/plotcore_test && /tmp/plotcore_test
 g++ -std=c++17 -Wall -Iplugins/device/console tools/historycore_test.cpp -o /tmp/historycore_test && /tmp/historycore_test
+g++ -std=c++17 -Wall -Isdk/include -Iplugins/endpoint/canslcan tools/cancore_test.cpp -o /tmp/cancore_test && /tmp/cancore_test
 ```
 
 Те же тесты и сборка на Linux, macOS и Windows запускаются в CI (`.github/workflows/ci.yml`), по тегу `v*` готовится
@@ -160,6 +162,7 @@ tools/      тесты логики, генератор значка, приме
 - [Архитектура](docs/architecture.md): слои, потоки, правила
 - [Новый плагин устройства](docs/new-device-plugin.md), [транспорт](docs/new-transport-plugin.md), [endpoint](docs/new-endpoint-plugin.md)
 - [Консоль](docs/console.md): строка/SCPI-блоки и история, терминал, hex, SSH-терминал
+- [CAN](docs/can.md): монитор CAN / CAN FD, адаптер SLCAN (CANable), последовательности кадров
 - [Графики](docs/plot.md)
 - [Настройки, пароли, HTTP и SSH](docs/configuration.md)
 - [Разработка](docs/development.md): переводы, ресурсы, значок приложения
