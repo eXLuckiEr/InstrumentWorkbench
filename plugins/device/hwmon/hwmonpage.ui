@@ -94,12 +94,6 @@
          </widget>
         </item>
         <item>
-         <widget class="QCheckBox" name="preciseCheck">
-          <property name="text"><string>Precise timing ($EPOCHREALTIME, bash 5)</string></property>
-          <property name="toolTip"><string>On: the device stamps every sample and keeps the period without drift. Off: simple mode, needs only bash 4; the samples are stamped when they arrive.</string></property>
-         </widget>
-        </item>
-        <item>
          <spacer name="periodSpacer">
           <property name="orientation"><enum>Qt::Horizontal</enum></property>
           <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>

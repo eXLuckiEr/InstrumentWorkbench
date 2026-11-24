@@ -23,7 +23,6 @@ QByteArray HwmonPreset::toJson() const
     o[QStringLiteral("name")] = name;
     o[QStringLiteral("description")] = description;
     o[QStringLiteral("periodMs")] = periodMs;
-    o[QStringLiteral("precise")] = precise;
     o[QStringLiteral("sensors")] = sensorsText;
     o[QStringLiteral("info")] = infoText;
     return QJsonDocument(o).toJson(QJsonDocument::Indented);
@@ -49,7 +48,6 @@ bool HwmonPreset::fromJson(const QByteArray &data, HwmonPreset &out, QString *er
     p.name = o.value(QStringLiteral("name")).toString();
     p.description = o.value(QStringLiteral("description")).toString();
     p.periodMs = qBound(hwmon::kMinPeriodMs, o.value(QStringLiteral("periodMs")).toInt(100), hwmon::kMaxPeriodMs);
-    p.precise = o.value(QStringLiteral("precise")).toBool(true);
     p.sensorsText = o.value(QStringLiteral("sensors")).toString();
     p.infoText = o.value(QStringLiteral("info")).toString();
     // The lists must be valid: a broken preset is better refused here than at "Apply".
@@ -72,7 +70,6 @@ QList<HwmonPreset> HwmonPreset::builtins()
         p.name = QString::fromStdString(b.name);
         p.description = QString::fromStdString(b.description);
         p.periodMs = b.periodMs;
-        p.precise = b.precise;
         p.sensorsText = QString::fromStdString(b.sensors);
         p.infoText = QString::fromStdString(b.info);
         list.append(p);

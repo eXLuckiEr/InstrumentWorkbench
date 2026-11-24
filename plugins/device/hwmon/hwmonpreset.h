@@ -3,16 +3,15 @@
 #include <QList>
 #include <QString>
 
-// A named set of hwmon settings: sensors, info commands, period, timing mode. Stored as a small JSON file
+// A named set of hwmon settings: sensors, info commands, period. Stored as a small JSON file
 // so that it can be saved, copied to a colleague or kept in a repository:
 //   {"format":"iwp-hwmon-preset","version":1,"name":"...","description":"...",
-//    "periodMs":100,"precise":true,"sensors":"<the text of the sensors list>","info":"<the text of the commands>"}
+//    "periodMs":100,"sensors":"<the text of the sensors list>","info":"<the text of the commands>"}
 // The two lists are kept as the text the user edits (with the comments).
 struct HwmonPreset {
     QString name;
     QString description;
     int periodMs = 100;
-    bool precise = true;
     QString sensorsText;
     QString infoText;
     QString filePath;   // empty for the built-in ones

@@ -7,7 +7,6 @@
 // reads it when it starts and on "reload".
 struct HwmonSettings {
     int periodMs = 100;
-    bool precise = true;   // timestamps from $EPOCHREALTIME on the device (bash 5); false = simple mode
     QString sensorsText;
     QString infoText;
 

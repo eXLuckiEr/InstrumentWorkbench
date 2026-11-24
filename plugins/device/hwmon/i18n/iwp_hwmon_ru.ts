@@ -40,14 +40,6 @@
         <translation>Настройки</translation>
     </message>
     <message>
-        <source>Precise timing ($EPOCHREALTIME, bash 5)</source>
-        <translation>Точное время ($EPOCHREALTIME, bash 5)</translation>
-    </message>
-    <message>
-        <source>On: the device stamps every sample and keeps the period without drift. Off: simple mode, needs only bash 4; the samples are stamped when they arrive.</source>
-        <translation>Вкл.: устройство ставит метку каждому отсчёту и держит период без дрейфа. Выкл.: простой режим, достаточно bash 4; метки ставятся при получении.</translation>
-    </message>
-    <message>
         <source>Sampling period:</source>
         <translation>Период опроса:</translation>
     </message>
@@ -147,19 +139,15 @@
 <context>
     <name>HwmonPlugin</name>
     <message>
-        <source>SSH shell of the device (choose “SSH shell”)</source>
-        <translation>SSH-оболочка устройства (выберите «SSH shell»)</translation>
+        <source>SSH access to the device</source>
+        <translation>SSH-доступ к устройству</translation>
     </message>
 </context>
 <context>
     <name>HwmonSession</name>
     <message>
-        <source>The device did not start the receiver. Is bash available there?</source>
-        <translation>Устройство не запустило приёмник. Есть ли там bash?</translation>
-    </message>
-    <message>
-        <source>The connection has an old start command saved. Clear the remote command (the { } button of the role) and reconnect.</source>
-        <translation>В подключении сохранена старая команда запуска. Очистите удалённую команду (кнопка { } у роли) и подключитесь снова.</translation>
+        <source>Cannot run commands: %1</source>
+        <translation>Не удалось выполнить команды: %1</translation>
     </message>
 </context>
 <context>

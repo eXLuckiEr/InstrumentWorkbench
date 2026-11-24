@@ -83,13 +83,11 @@ void HwmonPage::build()
         ui->sensorsEdit->setPlainText(QString::fromStdString(hwmon::defaultSensorsText()));
         ui->infoEdit->setPlainText(QString::fromStdString(hwmon::defaultInfoText()));
         ui->periodSpin->setValue(100);
-        ui->preciseCheck->setChecked(true);
     });
     refreshPresets();
 
     const HwmonSettings s = HwmonSettings::load();
     ui->periodSpin->setValue(s.periodMs);
-    ui->preciseCheck->setChecked(s.precise);
     ui->sensorsEdit->setPlainText(s.sensorsText);
     ui->infoEdit->setPlainText(s.infoText);
 }
@@ -223,7 +221,6 @@ void HwmonPage::apply()
 {
     HwmonSettings s;
     s.periodMs = ui->periodSpin->value();
-    s.precise = ui->preciseCheck->isChecked();
     s.sensorsText = ui->sensorsEdit->toPlainText();
     s.infoText = ui->infoEdit->toPlainText();
     hwmon::Config cfg;
@@ -264,7 +261,6 @@ void HwmonPage::loadPreset(const HwmonPreset &p)
     ui->sensorsEdit->setPlainText(p.sensorsText);
     ui->infoEdit->setPlainText(p.infoText);
     ui->periodSpin->setValue(p.periodMs);
-    ui->preciseCheck->setChecked(p.precise);
     ui->errorLabel->clear();
     ui->presetNote->setText(tr("Loaded \"%1\". Press Apply to use it.").arg(p.name));
 }
@@ -280,7 +276,6 @@ void HwmonPage::savePreset()
     HwmonPreset p;
     p.name = QFileInfo(path).completeBaseName();
     p.periodMs = ui->periodSpin->value();
-    p.precise = ui->preciseCheck->isChecked();
     p.sensorsText = ui->sensorsEdit->toPlainText();
     p.infoText = ui->infoEdit->toPlainText();
     // Do not save what could not be loaded back.

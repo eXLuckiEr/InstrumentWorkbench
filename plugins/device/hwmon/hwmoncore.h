@@ -1,26 +1,20 @@
 #pragma once
-// Monitor of hwmon-like sensors on a Linux device over SSH, without Qt (tested by tools/hwmoncore_test.cpp).
+// Monitor of hwmon-like sensors of a Linux device over the SSH command channel, without Qt (tested by
+// tools/hwmoncore_test.cpp).
 //
-// Nothing is installed on the device and nothing is written to its disk. The host starts ONE bash process
-// over ssh (bootstrapCommand()) and sends it scripts through stdin, each ended by the line endMarker(). The script
-//   1. runs the configured "info" commands once (versions...) and prints their output,
-//   2. then reads the sensor files in a loop and prints one line per period, until it is told to STOP,
-// using only bash builtins while sampling (no forks), timestamps from $EPOCHREALTIME and a deadline-based
-// pause (no drift); the simple mode (Config::precise = false) needs neither bash 5 nor EPOCHREALTIME. When the connection drops the process dies with its terminal.
+// Nothing is installed on the device and nothing is written to its disk. Two small POSIX sh scripts are run
+// through the ordinary "ssh" endpoint (one request = one `sh` evaluation, plain pipes, no terminal), so they
+// work on busybox too and the banner or the prompt of the device never gets into the data:
+//   * the DISCOVERY script, once after connecting (and after "Apply"): runs the info commands (versions...),
+//     expands the masks and reports the files that will be read,
+//   * the POLL script, every period: reads those files with the `read` builtin (no forks) and prints one line.
 //
-// Lines from the device (tab separated, anything else is ignored):
-//   H2                         the bootstrap is ready for a script
-//   H                          the OLD bootstrap (length framed receiver, saved in a connection): not usable
-//   I <name> <text>            output of an info command (backslash and newline escaped as \\ and \n)
-//   E <text>                   a problem (sensor file not found...)
-//   L <def> <label>            one per sensor slot, before R: the index of the line of the sensors list it
-//                              comes from and, for a name with {} (a mask), the part of the file path
-//                              that distinguishes it (hwmon2/temp1_input); empty for a plain sensor
-//   R <count> <period_us>      sampling starts
-//   S <t_us> <v1> <v2> ...     one sample of all sensors; an empty value = the read failed
-//                              t_us is "-" in the simple mode (no $EPOCHREALTIME on the device: the host
-//                              stamps the samples when they arrive)
-// Lines to the device: STOP
+// Lines from the device (anything else is ignored):
+//   i <index> <text>            one line of the output of the info command <index> (tab separated)
+//   L <def> <label> <path>      one per sensor slot: the line of the sensors list it comes from, for a name
+//                               with {} (a mask) the part of the path that distinguishes it, the file
+//   E <text>                    a problem (sensor file not found...)
+//   S <v1> <v2> ...             one sample of all slots; an empty value = the read failed
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -28,7 +22,6 @@
 #include <vector>
 
 namespace hwmon {
-
 constexpr int kMaxSensors = 32;
 constexpr int kMinPeriodMs = 20;
 constexpr int kMaxPeriodMs = 2000;
@@ -60,31 +53,9 @@ struct Info {
 };
 struct Config {
     int periodMs = 100;
-    // true: timestamps from $EPOCHREALTIME (bash 5) and a pause without drift.
-    // false: simple mode, the pause is a plain `read -t` (bash 4 is enough), the host stamps the samples.
-    bool precise = true;
     std::vector<Sensor> sensors;
     std::vector<Info> infos;
 };
-
-// ---- the receiver and the remote command given to ssh (role default "remoteCommand") ----
-// The receiver reads lines up to a marker line and evals them, again and again. It reads LINES, not
-// "read -N <length>": on a tty (ssh -tt, a UART) bash throws away the input that has already arrived when
-// `read -N` starts, so a script sent in one piece was lost (the first connection did nothing, "Apply" then
-// glued the pieces together). A stray STOP line (the sampling is not running) is ignored.
-inline const char *endMarker() { return "__IWP_END__"; }
-inline std::string receiverLoop()
-{
-    return "while :; do s=; printf -v nl \"\\n\"; while :; do IFS= read -r l || exit 0; [[ $l == STOP ]] && continue; "
-           "[[ $l == __IWP_END__ ]] && break; s+=$l$nl; done; eval \"$s\"; done";
-}
-
-// stty raw: bytes pass unchanged both ways (no echo, no CR/LF conversion). Prints "H2" when ready ("H" is what the
-// old length-framed receiver of a connection saved by an older version printed: the host reports it).
-inline std::string bootstrapCommand()
-{
-    return "stty raw -echo 2>/dev/null; printf 'H2\\n'; exec bash -c '" + receiverLoop() + "'";
-}
 
 // ---- text helpers ----
 inline std::string trim(const std::string &s)
@@ -285,7 +256,6 @@ struct BuiltinPreset {
     std::string name;
     std::string description;
     int periodMs;
-    bool precise;
     std::string sensors;
     std::string info;
 };
@@ -293,10 +263,10 @@ struct BuiltinPreset {
 inline std::vector<BuiltinPreset> builtinPresets()
 {
     std::vector<BuiltinPreset> v;
-    v.push_back({"OpenBMC: currents (13-0048)", "Three currents of the INA on i2c 13-0048, FPGA and BMC versions", 100, true,
+    v.push_back({"OpenBMC: currents (13-0048)", "Three currents of the INA on i2c 13-0048, FPGA and BMC versions", 100,
                  defaultSensorsText(), defaultInfoText()});
     v.push_back({"Linux: temperatures and CPU frequency",
-                 "thermal zones (milli-degrees) and the frequency of CPU 0; works on most boards", 500, true,
+                 "thermal zones (milli-degrees) and the frequency of CPU 0; works on most boards", 500,
                  "# name | file | divisor | unit\n"
                  "# {} in the name: one tile for every file the * matches; max= turns the tile red above it\n"
                  "zone {} | /sys/class/thermal/thermal_zone*/temp | 1000 | \xC2\xB0" "C | max=85\n"
@@ -304,14 +274,14 @@ inline std::vector<BuiltinPreset> builtinPresets()
                  "# name | command\n"
                  "Kernel | uname -srm\n"
                  "Uptime | uptime\n"});
-    v.push_back({"Linux: battery", "Voltage, current and charge of BAT0 (power_supply)", 1000, true,
+    v.push_back({"Linux: battery", "Voltage, current and charge of BAT0 (power_supply)", 1000,
                  "# name | file | divisor | unit\n"
                  "voltage | /sys/class/power_supply/BAT0/voltage_now | 1000000 | V\n"
                  "current | /sys/class/power_supply/BAT0/current_now | 1000 | mA\n"
                  "charge | /sys/class/power_supply/BAT0/capacity | 1 | % | min=15\n",
                  "# name | command\n"
                  "Status | cat /sys/class/power_supply/BAT0/status\n"});
-    v.push_back({"Empty", "Blank list: write your own sensors", 100, true,
+    v.push_back({"Empty", "Blank list: write your own sensors", 100,
                  "# name | file | divisor | unit\n", "# name | command\n"});
     return v;
 }
@@ -320,13 +290,18 @@ inline std::vector<BuiltinPreset> builtinPresets()
 struct Slot {
     int def = 0;          // index in Config::sensors
     std::string name;     // shown on the tile
+    std::string path;     // the file to read (empty before the device has reported it)
 };
-// L messages: fields {def, label}. Slots with a bad def are dropped.
+inline bool safePath(const std::string &p)
+{
+    return p.size() >= 2 && p[0] == '/' && p.find_first_of(" \t'\"\\$`;&|<>(){}\n*?[") == std::string::npos;
+}
+// L messages: fields {def, label, path}. Slots with a bad def are dropped.
 inline std::vector<Slot> makeSlots(const Config &cfg, const std::vector<std::vector<std::string>> &lmsgs)
 {
     std::vector<Slot> out;
     for (const auto &f : lmsgs) {
-        if (f.size() < 2)
+        if (f.size() < 3)
             continue;
         char *end = nullptr;
         const long d = std::strtol(f[0].c_str(), &end, 10);
@@ -336,6 +311,7 @@ inline std::vector<Slot> makeSlots(const Config &cfg, const std::vector<std::vec
         Slot sl;
         sl.def = int(d);
         sl.name = x.name;
+        sl.path = safePath(f[2]) ? f[2] : std::string();   // an unmatched glob: the slot stays, its value is empty
         if (isMask(x)) {
             const size_t p = sl.name.find("{}");
             sl.name.replace(p, 2, f[1]);
@@ -349,7 +325,7 @@ inline std::vector<Slot> declaredSlots(const Config &cfg)
 {
     std::vector<Slot> out;
     for (size_t i = 0; i < cfg.sensors.size() && int(out.size()) < kMaxSensors; ++i)
-        out.push_back({int(i), cfg.sensors[i].name});
+        out.push_back({int(i), cfg.sensors[i].name, std::string()});
     return out;
 }
 // The alarm: a numeric value outside [min, max], or a text that is not the expected one.
@@ -362,175 +338,126 @@ inline bool textAlarm(const Sensor &x, const std::string &v)
     return !x.expect.empty() && v != x.expect;
 }
 
-// ---- the script ----
-inline std::string buildScript(const Config &cfg)
+// ---- the scripts (POSIX sh) ----
+
+// Once after connecting: versions, the files behind the masks.
+inline std::string buildDiscoveryScript(const Config &cfg)
 {
-    std::string s = "shopt -s nullglob\n";
-    for (const Info &i : cfg.infos) {
-        s += "o=$(eval " + shQuote(i.command) + " 2>&1 </dev/null)\n";
-        s += "o=${o//\\\\/\\\\\\\\}\n";           // backslash doubled
-        s += "o=${o//$'\\n'/\\\\n}\n";            // newline becomes backslash-n
-        s += "printf 'I\\t%s\\t%s\\n' " + shQuote(i.name) + " \"$o\"\n";
+    std::string s = "c=0\n";
+    for (size_t i = 0; i < cfg.infos.size(); ++i) {
+        const std::string idx = std::to_string(i);
+        s += "o=$(eval " + shQuote(cfg.infos[i].command) + " 2>&1 </dev/null)\n";
+        s += "printf '%s\\n' \"$o\" | while IFS= read -r l; do printf 'i\\t" + idx + "\\t%s\\n' \"$l\"; done\n";
     }
-    s += "F=()\n";
     const std::string cap = std::to_string(kMaxSensors);
     for (size_t i = 0; i < cfg.sensors.size(); ++i) {
         const Sensor &x = cfg.sensors[i];
         const std::string idx = std::to_string(i);
         if (isMask(x)) {
-            s += "set -- " + x.path + "\n";
-            s += "if (($#)); then for f; do ((${#F[@]}>=" + cap + ")) && break; F+=(\"$f\"); "
-                 "printf 'L\\t" + idx + "\\t%s\\n' \"${f:" + std::to_string(staticPrefixLen(x.path)) + "}\"; done; "
-                 "else printf 'E\\t%s\\n' " + shQuote("sensor " + x.name + ": no file matches") + "; fi\n";
+            const std::string prefix = x.path.substr(0, staticPrefixLen(x.path));
+            s += "m=0; for f in " + x.path + "; do [ -e \"$f\" ] || continue; [ \"$c\" -lt " + cap + " ] || break; "
+                 "c=$((c+1)); m=1; printf 'L\\t" + idx + "\\t%s\\t%s\\n' \"${f#" + prefix + "}\" \"$f\"; done\n";
+            s += "[ \"$m\" = 1 ] || printf 'E\\t%s\\n' " + shQuote("sensor " + x.name + ": no file matches") + "\n";
         } else {
-            s += "set -- " + x.path + "\n";
-            s += "if ((${#F[@]}<" + cap + ")); then F+=(\"${1-}\"); printf 'L\\t" + idx + "\\t\\n'; "
-                 "[[ -r ${F[-1]} ]] || printf 'E\\t%s\\n' " + shQuote("sensor " + x.name + ": no readable file") + "; fi\n";
+            s += "set -- " + x.path + "\n";   // a glob gives its first match, no match leaves the pattern
+            s += "if [ \"$c\" -lt " + cap + " ]; then c=$((c+1)); printf 'L\\t" + idx + "\\t\\t%s\\n' \"$1\"; "
+                 "[ -r \"$1\" ] || printf 'E\\t%s\\n' " + shQuote("sensor " + x.name + ": no readable file") + "; fi\n";
         }
     }
-    int period = cfg.periodMs;
-    if (period < kMinPeriodMs)
-        period = kMinPeriodMs;
-    if (period > kMaxPeriodMs)
-        period = kMaxPeriodMs;
-    const long long periodUs = static_cast<long long>(period) * 1000;
-    s += "P=" + std::to_string(periodUs) + "\n";
-    s += "printf 'R\\t%d\\t%d\\n' ${#F[@]} $P\n";
-    if (cfg.precise) {
-        s += "n=$((${EPOCHREALTIME/[.,]/}))\n"
-             "while :; do\n"
-             "  t=${EPOCHREALTIME/[.,]/}\n"
-             "  l=S$'\\t'$t\n"
-             "  for f in \"${F[@]}\"; do\n"
-             "    v=\n"
-             "    if [[ -n $f ]]; then { read -r v < \"$f\"; } 2>/dev/null; v=${v//$'\\t'/ }; fi\n"
-             "    l+=$'\\t'$v\n"
-             "  done\n"
-             "  printf '%s\\n' \"$l\"\n"
-             "  n=$((n+P)); t=${EPOCHREALTIME/[.,]/}; d=$((n-t))\n"
-             "  if ((d<=0)); then n=$t; d=1000; fi\n"
-             "  printf -v w '%d.%06d' $((d/1000000)) $((d%1000000))\n"
-             "  read -r -t \"$w\" c; k=$?\n"
-             "  if ((k==0)); then [[ $c == STOP ]] && break; elif ((k<=128)); then exit; fi\n"
-             "done\n";
-    } else {
-        // Simple: a fixed pause after every sample (the real period is a bit longer by the reading time).
-        char w[32];
-        std::snprintf(w, sizeof w, "%d.%03d", period / 1000, period % 1000);
-        s += "while :; do\n"
-             "  l=S$'\\t'-\n"
-             "  for f in \"${F[@]}\"; do\n"
-             "    v=\n"
-             "    if [[ -n $f ]]; then { read -r v < \"$f\"; } 2>/dev/null; v=${v//$'\\t'/ }; fi\n"
-             "    l+=$'\\t'$v\n"
-             "  done\n"
-             "  printf '%s\\n' \"$l\"\n"
-             "  read -r -t " + std::string(w) + " c; k=$?\n"
-             "  if ((k==0)); then [[ $c == STOP ]] && break; elif ((k<=128)); then exit; fi\n"
-             "done\n";
-    }
+    s += "true\n";
     return s;
 }
 
-// What goes to the device: the script and the marker line.
-inline std::string frameScript(const std::string &script)
+// Every period: one line with the value of every slot, read with a builtin (no forks).
+inline std::string buildPollScript(const std::vector<Slot> &slotList)
 {
-    return script + (script.empty() || script.back() != '\n' ? "\n" : "") + endMarker() + "\n";
+    std::string files;
+    for (const Slot &sl : slotList)
+        files += " " + shQuote(safePath(sl.path) ? sl.path : std::string());
+    // a tab inside a value would shift the columns: replaced (a fork, only when there is one)
+    return "t='\t'; printf S; for f in" + files + "; do v=; { read -r v < \"$f\"; } 2>/dev/null; "
+           "case $v in *\"$t\"*) v=$(printf %s \"$v\" | tr \"$t\" ' ');; esac; printf '\\t%s' \"$v\"; done; echo\n";
 }
 
-// ---- lines from the device ----
-class LineBuffer
+// ---- what comes back ----
+struct Discovery {
+    std::vector<std::string> info;                      // the text of every info command, in the order of Config::infos
+    std::vector<std::vector<std::string>> slotMsgs;     // L: {def, label, path}
+    std::vector<std::string> errors;                    // E
+    std::vector<std::string> stray;                     // anything else (shell messages)
+};
+
+inline std::vector<std::string> splitLines(const std::string &text)
 {
-public:
-    // Appends bytes, returns complete lines (without \r\n).
-    void feed(const char *data, size_t n, std::vector<std::string> &lines)
-    {
-        for (size_t i = 0; i < n; ++i) {
-            const char c = data[i];
-            if (c == '\n') {
-                if (!m_cur.empty() && m_cur.back() == '\r')
-                    m_cur.pop_back();
-                lines.push_back(m_cur);
-                m_cur.clear();
-            } else if (m_cur.size() < 65536) {
-                m_cur += c;
+    std::vector<std::string> lines = splitChar(text, '\n');
+    for (std::string &l : lines)
+        if (!l.empty() && l.back() == '\r')
+            l.pop_back();
+    return lines;
+}
+
+inline Discovery parseDiscovery(const Config &cfg, const std::string &text)
+{
+    Discovery d;
+    d.info.assign(cfg.infos.size(), std::string());
+    std::vector<bool> any(cfg.infos.size(), false);
+    for (const std::string &l : splitLines(text)) {
+        if (l.empty())
+            continue;
+        if (l.size() > 2 && l[1] == '\t' && (l[0] == 'i' || l[0] == 'L' || l[0] == 'E')) {
+            if (l[0] == 'i') {
+                const std::vector<std::string> f = splitChar(l.substr(2), '\t', 2);
+                const long idx = std::strtol(f[0].c_str(), nullptr, 10);
+                if (f.size() == 2 && idx >= 0 && idx < long(d.info.size())) {
+                    std::string &t = d.info[size_t(idx)];
+                    t += (any[size_t(idx)] ? "\n" : "") + f[1];
+                    any[size_t(idx)] = true;
+                    continue;
+                }
+            } else if (l[0] == 'L') {
+                d.slotMsgs.push_back(splitChar(l.substr(2), '\t', 3));
+                continue;
+            } else {
+                d.errors.push_back(l.substr(2));
+                continue;
             }
         }
+        d.stray.push_back(l);
     }
-    void clear() { m_cur.clear(); }
-
-private:
-    std::string m_cur;
-};
-
-struct Message {
-    char type = 0;                    // H O I E L R S
-    std::vector<std::string> fields;  // after the type
-};
-
-inline bool parseMessage(const std::string &line, Message &m)
-{
-    if (line == "H2" || line == "H") {
-        m.type = line == "H2" ? 'H' : 'O';   // 'O': an old receiver is running
-        m.fields.clear();
-        return true;
-    }
-    if (line.size() < 2 || line[1] != '\t')
-        return false;
-    const char t = line[0];
-    if (t != 'I' && t != 'E' && t != 'R' && t != 'S' && t != 'L')
-        return false;
-    m.type = t;
-    m.fields = splitChar(line.substr(2), '\t', (t == 'I' || t == 'L') ? 2 : 0);
-    return true;
+    return d;
 }
 
-inline std::string unescapeInfo(const std::string &s)
-{
-    std::string out;
-    for (size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == '\\' && i + 1 < s.size()) {
-            ++i;
-            out += (s[i] == 'n') ? '\n' : s[i];
-        } else {
-            out += s[i];
-        }
-    }
-    return out;
-}
-
-// S fields: t_us, v1, v2... -> time and values (NaN-free: a failed read is reported in `ok`).
+// One sample: the values of the last "S" line of the answer (anything else in it is returned in `stray`).
 struct Sample {
-    long long tUs = 0;
     std::vector<double> value;
     std::vector<bool> ok;
     std::vector<std::string> raw;   // the trimmed text of every value (for the text sensors)
 };
-inline bool parseSample(const std::vector<std::string> &f, Sample &s)
+inline bool parseSample(const std::string &text, Sample &s, std::vector<std::string> *stray = nullptr)
 {
-    if (f.empty())
-        return false;
-    if (f[0] == "-") {
-        s.tUs = 0;   // simple mode: the host stamps it
-    } else {
-        char *end = nullptr;
-        s.tUs = std::strtoll(f[0].c_str(), &end, 10);
-        if (*end != '\0' || s.tUs <= 0)
-            return false;
+    bool found = false;
+    for (const std::string &l : splitLines(text)) {
+        if (l == "S" || (l.size() > 1 && l[0] == 'S' && l[1] == '\t')) {
+            s.value.clear();
+            s.ok.clear();
+            s.raw.clear();
+            if (l.size() > 2) {
+                for (const std::string &f : splitChar(l.substr(2), '\t')) {
+                    const std::string t = trim(f);
+                    char *e = nullptr;
+                    const double v = t.empty() ? 0.0 : std::strtod(t.c_str(), &e);
+                    const bool good = !t.empty() && *e == '\0';
+                    s.raw.push_back(t);
+                    s.value.push_back(good ? v : 0.0);
+                    s.ok.push_back(good);
+                }
+            }
+            found = true;
+        } else if (stray && !l.empty()) {
+            stray->push_back(l);
+        }
     }
-    s.value.clear();
-    s.ok.clear();
-    s.raw.clear();
-    for (size_t i = 1; i < f.size(); ++i) {
-        const std::string t = trim(f[i]);
-        s.raw.push_back(t);
-        char *e = nullptr;
-        const double v = t.empty() ? 0.0 : std::strtod(t.c_str(), &e);
-        const bool good = !t.empty() && *e == '\0';
-        s.value.push_back(good ? v : 0.0);
-        s.ok.push_back(good);
-    }
-    return true;
+    return found;
 }
 
 // Digits after the decimal point for a divisor: 1 -> 0, 1000 -> 3.

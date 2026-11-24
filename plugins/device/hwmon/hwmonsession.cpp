@@ -1,270 +1,215 @@
 #include "hwmonsession.h"
 
-#include <QRegularExpression>
-
 #include "hwmonsettings.h"
 
 namespace {
-const QString kStream = QStringLiteral("stream");
-constexpr int kFlushMs = 33;
-constexpr int kReadyTimeoutMs = 20000;   // no "R": the receiver did not start (no bash?)
-constexpr int kSilenceMs = 5000;         // no samples for this long = stale
+const QString kShell = QStringLiteral("shell");
+constexpr int kDiscoveryTimeoutMs = 15000;
+constexpr int kMinPollTimeoutMs = 3000;
+constexpr int kValuesIntervalMs = 30;
 }
 
 HwmonSession::HwmonSession(const Endpoints &endpoints, iwp::DeviceModel *deviceModel, QObject *parent)
-    : SessionBase(endpoints, deviceModel, parent), m_flushTimer(new QTimer(this)),
-      m_readyTimer(new QTimer(this))
+    : SessionBase(endpoints, deviceModel, parent), m_pollTimer(new QTimer(this))
 {
-    // Created here (UI thread, before the session moves to its worker); afterwards only postBatch().
+    // Created here (UI thread, before the session moves to its worker); afterwards only postSample().
     m_plot = deviceModel->addPlot(QStringLiteral("sensors"), 1 << 15);
     for (int i = 0; i < hwmon::kMaxSensors; ++i) {
         iwp::PlotSeriesInfo info;
         info.name = QStringLiteral("S%1").arg(i + 1);
-        info.regular = true;
+        info.regular = false;   // polled: every point is stamped with the time its answer came
         m_plot->addSeries(info);
     }
-    m_batch.resize(hwmon::kMaxSensors);
     m_last.fill(0.0f, hwmon::kMaxSensors);
     m_texts.fill(QString(), hwmon::kMaxSensors);
-
-    m_flushTimer->setInterval(kFlushMs);
-    connect(m_flushTimer, &QTimer::timeout, this, &HwmonSession::flush);
-    m_readyTimer->setSingleShot(true);
-    m_readyTimer->setInterval(kReadyTimeoutMs);
-    connect(m_readyTimer, &QTimer::timeout, this, [this] {
-        fail(tr("The device did not start the receiver. Is bash available there?"));
-    });
-
-    if (iwp::IEndpoint *ep = endpoint(kStream)) {
-        connect(ep, &iwp::IEndpoint::unsolicited, this, &HwmonSession::onData);
-        watchdog(kStream, kSilenceMs);
-    }
+    connect(m_pollTimer, &QTimer::timeout, this, &HwmonSession::pollOnce);
     loadConfig();
 }
 
-void HwmonSession::loadConfig()
+bool HwmonSession::loadConfig()
 {
     QString err;
     hwmon::Config cfg;
     if (HwmonSettings::load().toConfig(cfg, &err)) {
         m_cfg = cfg;
         m_cfgError.clear();
-    } else {
-        m_cfg = hwmon::Config();
-        m_cfgError = err;
+        return true;
     }
+    m_cfg = hwmon::Config();
+    m_cfgError = err;
+    return false;
 }
 
 void HwmonSession::resetLayout()
 {
-    m_pendingL.clear();
+    ++m_generation;   // an answer of the previous run must not reach the new layout
+    m_busy = false;
+    m_pollTimer->stop();
     m_slots.clear();
     m_divisor.clear();
+    m_pollScript.clear();
+    m_noise.clear();
     m_texts.fill(QString(), hwmon::kMaxSensors);
     m_last.fill(0.0f, hwmon::kMaxSensors);
-    model()->update(QStringLiteral("layout"), QVariantList(), kStream);
-    model()->update(QStringLiteral("values"), QVariantList(), kStream);
-}
-
-// The slots are known (from the L messages, or from the settings for a device that sends none).
-void HwmonSession::applySlots()
-{
-    m_slots = hwmon::makeSlots(m_cfg, m_pendingL);
-    if (m_slots.empty())
-        m_slots = hwmon::declaredSlots(m_cfg);
-    m_divisor.clear();
-    QVariantList layout;
-    for (const hwmon::Slot &sl : m_slots) {
-        const hwmon::Sensor &x = m_cfg.sensors[size_t(sl.def)];
-        m_divisor.append(x.divisor);
-        QVariantMap e;
-        e[QStringLiteral("name")] = QString::fromStdString(sl.name);
-        e[QStringLiteral("unit")] = QString::fromStdString(x.unit);
-        e[QStringLiteral("decimals")] = hwmon::decimalsFor(x.divisor);
-        e[QStringLiteral("text")] = x.text;
-        e[QStringLiteral("hasMin")] = x.hasMin;
-        e[QStringLiteral("minV")] = x.minV;
-        e[QStringLiteral("hasMax")] = x.hasMax;
-        e[QStringLiteral("maxV")] = x.maxV;
-        e[QStringLiteral("expect")] = QString::fromStdString(x.expect);
-        layout.append(e);
-    }
-    model()->update(QStringLiteral("layout"), layout, kStream);
+    m_plot->postClear();
+    model()->update(QStringLiteral("layout"), QVariantList(), kShell);
+    model()->update(QStringLiteral("values"), QVariantList(), kShell);
+    model()->update(QStringLiteral("info"), QVariantList(), kShell);
+    model()->update(QStringLiteral("diag"), QString(), kShell);
 }
 
 void HwmonSession::onStart()
 {
-    loadConfig();
-    if (!m_cfgError.isEmpty()) {
+    if (!loadConfig()) {
         fail(m_cfgError);
         return;
     }
-    m_scriptSent = false;
-    m_ready = false;
-    m_lines.clear();
-    m_info.clear();
-    m_noise.clear();
-    model()->update(QStringLiteral("diag"), QString(), kStream);
-    model()->update(QStringLiteral("info"), m_info, kStream);
     resetLayout();
-    m_plot->postClear();
-    for (auto &b : m_batch)
-        b.clear();
-    // The script is sent when the receiver says it is ready ("H2"); if that does not come, the ready timer
-    // fails with what the device said instead.
-    m_readyTimer->start();
+    discover(true);
 }
 
 void HwmonSession::onStopped()
 {
-    m_flushTimer->stop();
-    m_readyTimer->stop();
-    m_scriptSent = false;
-    m_ready = false;
-}
-
-void HwmonSession::sendScript()
-{
-    if (m_scriptSent)
-        return;
-    m_scriptSent = true;
-    const std::string framed = hwmon::frameScript(hwmon::buildScript(m_cfg));
-    write(kStream, QByteArray::fromStdString(framed));
+    ++m_generation;
+    m_busy = false;
+    m_pollTimer->stop();
 }
 
 void HwmonSession::onCommand(const QString &name, const QVariant &)
 {
     if (name != QLatin1String("reload"))
         return;
-    loadConfig();
-    if (!m_cfgError.isEmpty()) {
+    if (!loadConfig()) {
         model()->postEvent(QStringLiteral("log"), m_cfgError);
         return;
     }
-    if (!m_scriptSent)
-        return;   // not started yet: onStart / the timer will use the new settings
-    // The running script stops on STOP and the receiver waits for the next one.
-    write(kStream, "STOP\n");
-    m_ready = false;
-    m_info.clear();
-    model()->update(QStringLiteral("info"), m_info, kStream);
     resetLayout();
-    m_plot->postClear();
-    for (auto &b : m_batch)
-        b.clear();
-    m_flushTimer->stop();
-    m_scriptSent = false;
-    m_readyTimer->start();
-    QTimer::singleShot(300, this, &HwmonSession::sendScript);
+    discover(false);
 }
 
-void HwmonSession::onData(const QByteArray &data)
+// Versions and the files behind the masks: one request. Then the polling starts.
+void HwmonSession::discover(bool firstStart)
 {
-    std::vector<std::string> lines;
-    m_lines.feed(data.constData(), size_t(data.size()), lines);
-    for (const std::string &l : lines)
-        onLine(l);
-}
-
-void HwmonSession::onLine(const std::string &line)
-{
-    hwmon::Message m;
-    if (!hwmon::parseMessage(line, m)) {
-        // Shell errors and ssh messages are kept (the last few lines) so that the page can show why it stopped.
-        // What comes before the receiver says "H2" is the login banner of the device and is dropped then.
-        static const QRegularExpression colour(QStringLiteral("(\\x1b\\[[0-9;?]*[A-Za-z])|(\\\\033\\[[0-9;]*m)"));
-        QString t = QString::fromLocal8Bit(line.data(), qsizetype(qMin<size_t>(line.size(), 240)));
-        t.remove(colour);
-        t = t.trimmed();
-        if (t.isEmpty())
+    const int generation = m_generation;
+    const QByteArray script = QByteArray::fromStdString(hwmon::buildDiscoveryScript(m_cfg));
+    query(kShell, script, [this, generation, firstStart](const iwp::Response &r) {
+        if (generation != m_generation)
             return;
+        if (!r.ok) {
+            if (firstStart)
+                fail(tr("Cannot run commands: %1").arg(r.error));
+            else
+                model()->postEvent(QStringLiteral("log"), tr("Cannot run commands: %1").arg(r.error));
+            return;
+        }
+        const hwmon::Discovery d = hwmon::parseDiscovery(m_cfg, r.text().toStdString());
+
+        QVariantList info;
+        for (size_t i = 0; i < m_cfg.infos.size(); ++i) {
+            QVariantMap e;
+            e[QStringLiteral("name")] = QString::fromStdString(m_cfg.infos[i].name);
+            e[QStringLiteral("text")] = QString::fromStdString(d.info[i]).trimmed();
+            info.append(e);
+        }
+        model()->update(QStringLiteral("info"), info, kShell);
+        for (const std::string &e : d.errors)
+            model()->postEvent(QStringLiteral("log"), QString::fromStdString(e));
+        noteStray(d.stray);
+
+        m_slots = hwmon::makeSlots(m_cfg, d.slotMsgs);
+        m_divisor.clear();
+        QVariantList layout;
+        for (const hwmon::Slot &sl : m_slots) {
+            const hwmon::Sensor &x = m_cfg.sensors[size_t(sl.def)];
+            m_divisor.append(x.divisor);
+            QVariantMap e;
+            e[QStringLiteral("name")] = QString::fromStdString(sl.name);
+            e[QStringLiteral("unit")] = QString::fromStdString(x.unit);
+            e[QStringLiteral("decimals")] = hwmon::decimalsFor(x.divisor);
+            e[QStringLiteral("text")] = x.text;
+            e[QStringLiteral("hasMin")] = x.hasMin;
+            e[QStringLiteral("minV")] = x.minV;
+            e[QStringLiteral("hasMax")] = x.hasMax;
+            e[QStringLiteral("maxV")] = x.maxV;
+            e[QStringLiteral("expect")] = QString::fromStdString(x.expect);
+            layout.append(e);
+        }
+        model()->update(QStringLiteral("layout"), layout, kShell);
+        model()->update(QStringLiteral("sensor_count"), int(m_slots.size()), kShell);
+        model()->update(QStringLiteral("period_ms"), m_cfg.periodMs, kShell);
+
+        m_pollScript = QByteArray::fromStdString(hwmon::buildPollScript(m_slots));
+        m_pollTimer->start(m_cfg.periodMs);
+        m_valuesClock.start();
+        if (firstStart)
+            setRunning();
+    }, 0, kDiscoveryTimeoutMs);
+}
+
+void HwmonSession::pollOnce()
+{
+    if (m_busy || m_pollScript.isEmpty())
+        return;   // the previous answer has not come yet (a slow link): this tick is skipped
+    m_busy = true;
+    const int generation = m_generation;
+    query(kShell, m_pollScript, [this, generation](const iwp::Response &r) {
+        if (generation != m_generation)
+            return;
+        m_busy = false;
+        if (r.ok)
+            onSample(r.data);   // a failed request is counted by the base class (the status goes Offline)
+    }, 0, qMax(kMinPollTimeoutMs, m_cfg.periodMs * 5));
+}
+
+void HwmonSession::onSample(const QByteArray &answer)
+{
+    hwmon::Sample s;
+    std::vector<std::string> stray;
+    if (!hwmon::parseSample(answer.toStdString(), s, &stray)) {
+        noteStray(stray);
+        return;
+    }
+    if (!stray.empty())
+        noteStray(stray);
+    const int n = qMin(int(s.value.size()), int(m_slots.size()));
+    for (int i = 0; i < n; ++i) {
+        if (m_cfg.sensors[size_t(m_slots[size_t(i)].def)].text) {
+            if (!s.raw[size_t(i)].empty())
+                m_texts[i] = QString::fromStdString(s.raw[size_t(i)]);
+            continue;   // no graph for a text
+        }
+        if (s.ok[size_t(i)])
+            m_last[i] = float(s.value[size_t(i)] / m_divisor[i]);
+        m_plot->postSample(i, m_last[i]);   // a failed read repeats the previous value
+    }
+    if (m_valuesClock.elapsed() >= kValuesIntervalMs) {
+        m_valuesClock.restart();
+        publishValues();
+    }
+}
+
+void HwmonSession::publishValues()
+{
+    QVariantList v;
+    for (int i = 0; i < int(m_slots.size()); ++i) {
+        if (m_cfg.sensors[size_t(m_slots[size_t(i)].def)].text)
+            v.append(m_texts[i]);
+        else
+            v.append(double(m_last[i]));
+    }
+    model()->update(QStringLiteral("values"), v, kShell);
+}
+
+// Lines that are not part of the protocol (shell messages): the last few are shown, to explain a failure.
+void HwmonSession::noteStray(const std::vector<std::string> &lines)
+{
+    for (const std::string &l : lines) {
+        const QString t = QString::fromLocal8Bit(l.data(), qsizetype(qMin<size_t>(l.size(), 240))).trimmed();
+        if (t.isEmpty())
+            continue;
         m_noise.append(t);
         while (m_noise.size() > 8)
             m_noise.removeFirst();
-        model()->update(QStringLiteral("diag"), m_noise.join(QLatin1Char('\n')), kStream);
-        return;
     }
-    switch (m.type) {
-    case 'H':
-        m_noise.clear();   // the banner and the like that came before the receiver started
-        model()->update(QStringLiteral("diag"), QString(), kStream);
-        sendScript();
-        break;
-    case 'O':   // a connection saved by an older version still starts the old (length framed) receiver
-        fail(tr("The connection has an old start command saved. Clear the remote command (the { } button of the "
-                "role) and reconnect."));
-        break;
-    case 'I':
-        if (m.fields.size() >= 2) {
-            QVariantMap e;
-            e[QStringLiteral("name")] = QString::fromStdString(m.fields[0]);
-            e[QStringLiteral("text")] = QString::fromStdString(hwmon::unescapeInfo(m.fields[1])).trimmed();
-            m_info.append(e);
-            model()->update(QStringLiteral("info"), m_info, kStream);
-        }
-        break;
-    case 'E':
-        if (!m.fields.empty())
-            model()->postEvent(QStringLiteral("log"), QString::fromStdString(m.fields[0]));
-        break;
-    case 'L':
-        m_pendingL.push_back(m.fields);
-        break;
-    case 'R':
-        applySlots();
-        m_ready = true;
-        m_readyTimer->stop();
-        if (m.fields.size() >= 2) {
-            model()->update(QStringLiteral("sensor_count"), QString::fromStdString(m.fields[0]).toInt(), kStream);
-            model()->update(QStringLiteral("period_ms"), QString::fromStdString(m.fields[1]).toLongLong() / 1000, kStream);
-        }
-        m_flushTimer->start();
-        setRunning();
-        break;
-    case 'S': {
-        if (!m_ready)
-            break;
-        hwmon::Sample s;
-        if (!hwmon::parseSample(m.fields, s))
-            break;
-        kick(kStream);
-        const int n = qMin(int(s.value.size()), qMin(int(m_slots.size()), hwmon::kMaxSensors));
-        for (int i = 0; i < n; ++i) {
-            if (m_cfg.sensors[size_t(m_slots[size_t(i)].def)].text) {
-                if (s.ok[size_t(i)] || !s.raw[size_t(i)].empty())
-                    m_texts[i] = QString::fromStdString(s.raw[size_t(i)]);
-                continue;   // no graph for a text
-            }
-            if (s.ok[size_t(i)])
-                m_last[i] = float(s.value[size_t(i)] / m_divisor[i]);
-            m_batch[i].append(m_last[i]);   // a failed read repeats the previous value, the series stay regular
-        }
-        m_valuesDirty = true;
-        break;
-    }
-    default:
-        break;
-    }
-}
-
-void HwmonSession::flush()
-{
-    const double now = iwp::PlotBuffer::now();
-    for (int i = 0; i < hwmon::kMaxSensors; ++i) {
-        if (m_batch[i].isEmpty())
-            continue;
-        m_plot->postBatch(i, m_batch[i], now);
-        m_batch[i].clear();
-    }
-    if (m_valuesDirty) {
-        m_valuesDirty = false;
-        QVariantList v;
-        for (int i = 0; i < int(m_slots.size()); ++i) {
-            if (m_cfg.sensors[size_t(m_slots[size_t(i)].def)].text)
-                v.append(m_texts[i]);
-            else
-                v.append(double(m_last[i]));
-        }
-        model()->update(QStringLiteral("values"), v, kStream);
-    }
+    model()->update(QStringLiteral("diag"), m_noise.join(QLatin1Char('\n')), kShell);
 }
