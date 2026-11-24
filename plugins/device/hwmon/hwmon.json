@@ -1,0 +1,9 @@
+{
+    "id": "hwmon",
+    "name": "Linux sensors over SSH (hwmon)",
+    "kind": "device",
+    "group": "servers",
+    "order": 30,
+    "version": "0.1.0",
+    "apiVersion": 6
+}

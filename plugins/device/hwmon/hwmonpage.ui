@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>HwmonPage</class>
+ <widget class="QWidget" name="HwmonPage">
+  <layout class="QVBoxLayout" name="rootLayout" stretch="0,0,0,1">
+   <item>
+    <widget class="QGroupBox" name="infoBox">
+     <property name="title"><string>Device</string></property>
+     <layout class="QFormLayout" name="infoForm"/>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="controlsLayout">
+     <item>
+      <widget class="QLabel" name="windowLabel">
+       <property name="text"><string>Time span:</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="windowCombo"/>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="pauseCheck">
+       <property name="text"><string>Pause graphs</string></property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="controlsSpacer">
+       <property name="orientation"><enum>Qt::Horizontal</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="statusLabel"/>
+     </item>
+     <item>
+      <widget class="QPushButton" name="settingsButton">
+       <property name="text"><string>Settings</string></property>
+       <property name="checkable"><bool>true</bool></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QWidget" name="settingsPanel">
+     <property name="visible"><bool>false</bool></property>
+     <layout class="QVBoxLayout" name="settingsLayout">
+      <property name="leftMargin"><number>0</number></property>
+      <property name="topMargin"><number>0</number></property>
+      <property name="rightMargin"><number>0</number></property>
+      <property name="bottomMargin"><number>0</number></property>
+      <item>
+       <layout class="QHBoxLayout" name="presetRow" stretch="0,0,0,0,1">
+        <item>
+         <widget class="QLabel" name="presetLabel">
+          <property name="text"><string>Preset:</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="presetCombo">
+          <property name="minimumSize"><size><width>260</width><height>0</height></size></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="saveButton">
+          <property name="text"><string>Save as...</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="openButton">
+          <property name="text"><string>Open...</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="presetNote">
+          <property name="wordWrap"><bool>true</bool></property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="periodRow">
+        <item>
+         <widget class="QLabel" name="periodLabel">
+          <property name="text"><string>Sampling period:</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="periodSpin">
+          <property name="suffix"><string> ms</string></property>
+          <property name="minimum"><number>20</number></property>
+          <property name="maximum"><number>2000</number></property>
+          <property name="value"><number>100</number></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="preciseCheck">
+          <property name="text"><string>Precise timing ($EPOCHREALTIME, bash 5)</string></property>
+          <property name="toolTip"><string>On: the device stamps every sample and keeps the period without drift. Off: simple mode, needs only bash 4; the samples are stamped when they arrive.</string></property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="periodSpacer">
+          <property name="orientation"><enum>Qt::Horizontal</enum></property>
+          <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="listsRow" stretch="3,2">
+        <item>
+         <widget class="QGroupBox" name="sensorsBox">
+          <property name="title"><string>Sensors: name | file | divisor | unit | options</string></property>
+          <layout class="QVBoxLayout" name="sensorsLayout">
+           <item>
+            <widget class="QPlainTextEdit" name="sensorsEdit">
+             <property name="font"><font><family>monospace</family></font></property>
+             <property name="lineWrapMode"><enum>QPlainTextEdit::NoWrap</enum></property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="infoCmdBox">
+          <property name="title"><string>Commands after connecting: name | command</string></property>
+          <layout class="QVBoxLayout" name="infoCmdLayout">
+           <item>
+            <widget class="QPlainTextEdit" name="infoEdit">
+             <property name="font"><font><family>monospace</family></font></property>
+             <property name="lineWrapMode"><enum>QPlainTextEdit::NoWrap</enum></property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="buttonRow" stretch="0,0,1">
+        <item>
+         <widget class="QPushButton" name="applyButton">
+          <property name="text"><string>Apply</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="defaultsButton">
+          <property name="text"><string>Defaults</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="errorLabel">
+          <property name="styleSheet"><string>color: #c62828;</string></property>
+          <property name="wordWrap"><bool>true</bool></property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="hintLabel">
+        <property name="text"><string>The divisor turns the raw number into the unit (hwmon gives milliamperes: 1; amperes: 1000). A * in the path is fine: the hwmon numbers change between boots. Options: min=N max=N (the tile turns red outside), text (a state, shown as it is) with expect=VALUE (red when it differs); {} in the name makes a tile for every file the * matches. Lines starting with # are comments. Nothing is installed on the device.</string></property>
+        <property name="wordWrap"><bool>true</bool></property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QScrollArea" name="tilesScroll">
+     <property name="frameShape"><enum>QFrame::NoFrame</enum></property>
+     <property name="widgetResizable"><bool>true</bool></property>
+     <widget class="QWidget" name="tilesHost">
+      <layout class="QGridLayout" name="tilesGrid">
+       <property name="leftMargin"><number>0</number></property>
+       <property name="topMargin"><number>0</number></property>
+       <property name="rightMargin"><number>0</number></property>
+       <property name="bottomMargin"><number>0</number></property>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
