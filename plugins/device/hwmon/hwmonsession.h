@@ -16,6 +16,8 @@
 //   layout           QVariantList of {name, unit, decimals, text, hasMin, minV, hasMax, maxV, expect}: the slots the
 //                    device really reads (a mask gives several); empty until the device reports them
 //   values           QVariantList, one per slot: double (already divided) or QString for a text sensor
+//   diag             QString: the first lines the device sent that are not part of the protocol (errors of the
+//                    remote shell, ssh messages); empty when there were none
 //   sensor_count, period_ms   what the device runs now
 // Plot "sensors": one regular series per slot (kMaxSensors), values divided by the divisor (text slots: no data).
 // Events: "log" (text) for messages from the device.
@@ -45,11 +47,11 @@ private:
     QString m_cfgError;
     hwmon::LineBuffer m_lines;
     QTimer *m_flushTimer;
-    QTimer *m_helloTimer;
     QTimer *m_readyTimer;
     bool m_scriptSent = false;
     bool m_ready = false;
     QVariantList m_info;
+    QStringList m_noise;   // lines that are not ours (shell or ssh messages), shown to explain a failure
     QVector<QVector<float>> m_batch;
     QVector<float> m_last;
     QVector<double> m_divisor;                          // per slot

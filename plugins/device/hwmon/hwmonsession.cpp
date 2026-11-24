@@ -1,17 +1,18 @@
 #include "hwmonsession.h"
 
+#include <QRegularExpression>
+
 #include "hwmonsettings.h"
 
 namespace {
 const QString kStream = QStringLiteral("stream");
 constexpr int kFlushMs = 33;
-constexpr int kHelloTimeoutMs = 3000;    // no "H" from the device: send the script anyway
 constexpr int kReadyTimeoutMs = 20000;   // no "R": the receiver did not start (no bash?)
 constexpr int kSilenceMs = 5000;         // no samples for this long = stale
 }
 
 HwmonSession::HwmonSession(const Endpoints &endpoints, iwp::DeviceModel *deviceModel, QObject *parent)
-    : SessionBase(endpoints, deviceModel, parent), m_flushTimer(new QTimer(this)), m_helloTimer(new QTimer(this)),
+    : SessionBase(endpoints, deviceModel, parent), m_flushTimer(new QTimer(this)),
       m_readyTimer(new QTimer(this))
 {
     // Created here (UI thread, before the session moves to its worker); afterwards only postBatch().
@@ -28,9 +29,6 @@ HwmonSession::HwmonSession(const Endpoints &endpoints, iwp::DeviceModel *deviceM
 
     m_flushTimer->setInterval(kFlushMs);
     connect(m_flushTimer, &QTimer::timeout, this, &HwmonSession::flush);
-    m_helloTimer->setSingleShot(true);
-    m_helloTimer->setInterval(kHelloTimeoutMs);
-    connect(m_helloTimer, &QTimer::timeout, this, &HwmonSession::sendScript);
     m_readyTimer->setSingleShot(true);
     m_readyTimer->setInterval(kReadyTimeoutMs);
     connect(m_readyTimer, &QTimer::timeout, this, [this] {
@@ -105,20 +103,21 @@ void HwmonSession::onStart()
     m_ready = false;
     m_lines.clear();
     m_info.clear();
+    m_noise.clear();
+    model()->update(QStringLiteral("diag"), QString(), kStream);
     model()->update(QStringLiteral("info"), m_info, kStream);
     resetLayout();
     m_plot->postClear();
     for (auto &b : m_batch)
         b.clear();
-    // The receiver prints "H" when it is ready for the script; if that line does not come, try anyway.
-    m_helloTimer->start();
+    // The script is sent when the receiver says it is ready ("H2"); if that does not come, the ready timer
+    // fails with what the device said instead.
     m_readyTimer->start();
 }
 
 void HwmonSession::onStopped()
 {
     m_flushTimer->stop();
-    m_helloTimer->stop();
     m_readyTimer->stop();
     m_scriptSent = false;
     m_ready = false;
@@ -129,7 +128,6 @@ void HwmonSession::sendScript()
     if (m_scriptSent)
         return;
     m_scriptSent = true;
-    m_helloTimer->stop();
     const std::string framed = hwmon::frameScript(hwmon::buildScript(m_cfg));
     write(kStream, QByteArray::fromStdString(framed));
 }
@@ -171,11 +169,30 @@ void HwmonSession::onData(const QByteArray &data)
 void HwmonSession::onLine(const std::string &line)
 {
     hwmon::Message m;
-    if (!hwmon::parseMessage(line, m))
-        return;   // ssh messages, noise
+    if (!hwmon::parseMessage(line, m)) {
+        // Shell errors and ssh messages are kept (the last few lines) so that the page can show why it stopped.
+        // What comes before the receiver says "H2" is the login banner of the device and is dropped then.
+        static const QRegularExpression colour(QStringLiteral("(\\x1b\\[[0-9;?]*[A-Za-z])|(\\\\033\\[[0-9;]*m)"));
+        QString t = QString::fromLocal8Bit(line.data(), qsizetype(qMin<size_t>(line.size(), 240)));
+        t.remove(colour);
+        t = t.trimmed();
+        if (t.isEmpty())
+            return;
+        m_noise.append(t);
+        while (m_noise.size() > 8)
+            m_noise.removeFirst();
+        model()->update(QStringLiteral("diag"), m_noise.join(QLatin1Char('\n')), kStream);
+        return;
+    }
     switch (m.type) {
     case 'H':
+        m_noise.clear();   // the banner and the like that came before the receiver started
+        model()->update(QStringLiteral("diag"), QString(), kStream);
         sendScript();
+        break;
+    case 'O':   // a connection saved by an older version still starts the old (length framed) receiver
+        fail(tr("The connection has an old start command saved. Clear the remote command (the { } button of the "
+                "role) and reconnect."));
         break;
     case 'I':
         if (m.fields.size() >= 2) {

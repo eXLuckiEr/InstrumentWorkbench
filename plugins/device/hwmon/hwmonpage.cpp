@@ -7,16 +7,8 @@
 #include <QFileInfo>
 #include <QSaveFile>
 #include <QComboBox>
-#include <QFormLayout>
-#include <QGridLayout>
-#include <QGroupBox>
-#include <QHBoxLayout>
 #include <QLabel>
-#include <QPlainTextEdit>
 #include <QPushButton>
-#include <QScrollArea>
-#include <QSpinBox>
-#include <QVBoxLayout>
 
 #include "hwmonsettings.h"
 #include "sensortile.h"
@@ -34,7 +26,7 @@ HwmonPage::HwmonPage(iwp::DeviceModel *model, QWidget *parent)
     showInfo();
     showStatus();
     connect(m_model, &iwp::DeviceModel::valueChanged, this, [this](const QString &key) {
-        if (key == QLatin1String("info"))
+        if (key == QLatin1String("info") || key == QLatin1String("diag"))
             showInfo();
         else if (key == QLatin1String("layout"))
             buildTiles();
@@ -182,7 +174,8 @@ void HwmonPage::showInfo()
     while (ui->infoForm->rowCount() > 0)
         ui->infoForm->removeRow(0);
     const QVariantList list = m_model->value(QStringLiteral("info")).toList();
-    if (list.isEmpty()) {
+    const QString diag = m_model->value(QStringLiteral("diag")).toString();
+    if (list.isEmpty() && diag.isEmpty()) {
         ui->infoForm->addRow(new QLabel(tr("The versions are read after connecting.")));
         return;
     }
@@ -191,6 +184,13 @@ void HwmonPage::showInfo()
         auto *l = new QLabel(e.value("text").toString());
         l->setTextInteractionFlags(Qt::TextSelectableByMouse);
         ui->infoForm->addRow(e.value("name").toString() + QLatin1Char(':'), l);
+    }
+    if (!diag.isEmpty()) {   // what the remote shell or ssh said besides the data: usually the reason of a failure
+        auto *l = new QLabel(diag);
+        l->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        l->setStyleSheet(QStringLiteral("color: #c62828;"));
+        l->setWordWrap(true);
+        ui->infoForm->addRow(tr("Device output:"), l);
     }
 }
 

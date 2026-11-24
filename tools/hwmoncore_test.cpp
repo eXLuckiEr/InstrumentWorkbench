@@ -18,8 +18,22 @@ static hwmon::Sensor mk(const std::string &name, const std::string &path, double
     return x;
 }
 
-int main()
+// `hwmoncore_test --dump <dir>`: what the host sends (for tools/hwmon_pty_test.py, which runs it on a pty).
+static int dump(const std::string &dir)
 {
+    hwmon::Config c;
+    c.periodMs = 100;
+    c.sensors = {mk("up", "/proc/uptime", 1, "s")};
+    c.infos = {{"Kernel", "uname -s"}};
+    std::ofstream(dir + "/boot") << hwmon::bootstrapCommand();
+    std::ofstream(dir + "/frame") << hwmon::frameScript(hwmon::buildScript(c));
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    if (argc == 3 && std::string(argv[1]) == "--dump")
+        return dump(argv[2]);
     std::string err;
     std::vector<Sensor> sensors;
     CHECK(parseSensors(defaultSensorsText(), sensors, err));
@@ -54,8 +68,9 @@ int main()
     lb.feed(chunk2.data(), chunk2.size(), lines);
     CHECK(lines.size() == 1 && lines[0] == "S\t101\t3");
     Message m;
-    CHECK(parseMessage("H", m) && m.type == 'H');
+    CHECK(parseMessage("H2", m) && m.type == 'H' && parseMessage("H", m) && m.type == 'O');
     CHECK(parseMessage("I\tFPGA\ta\tb", m) && m.type == 'I' && m.fields.size() == 2 && m.fields[1] == "a\tb");
+    CHECK(bootstrapCommand().find("read -N") == std::string::npos);   // see receiverLoop(): -N loses input on a tty
     CHECK(!parseMessage("garbage", m) && !parseMessage("X\tfoo", m));
     CHECK(unescapeInfo("a\\nb\\\\c") == "a\nb\\c");
     Sample s;
@@ -118,8 +133,7 @@ int main()
     cfg.infos = {{"One", "printf 'line1\\nline2\\\\x'"}, {"Two", "echo \"it's fine\""}, {"Bad", "exit 3"}};
     const std::string script = buildScript(cfg);
     { std::ofstream(dir + "/in") << frameScript(script); }
-    const std::string cmd = "( cat " + dir + "/in; sleep 1; printf 'STOP\\n' ) | bash -c '"
-        "while IFS= read -r n && IFS= read -r -N \"$n\" s; do eval \"$s\"; done' > " + dir + "/out 2>" + dir + "/err";
+    const std::string cmd = "( cat " + dir + "/in; sleep 1; printf 'STOP\\n' ) | bash -c '" + receiverLoop() + "' > " + dir + "/out 2>" + dir + "/err";
     CHECK(system(cmd.c_str()) == 0);
     const std::string out = readFile(dir + "/out");
     LineBuffer lb2; std::vector<std::string> ls;
@@ -166,8 +180,7 @@ int main()
                       mk("none {}", dir + "/nothing*/x", 1, ""), mk("last", dir + "/z0/temp", 1000, "C")};
         c2.sensors[1].text = true;
         { std::ofstream(dir + "/in3") << frameScript(buildScript(c2)); }
-        const std::string cmd3 = "( cat " + dir + "/in3; sleep 0.4; printf 'STOP\\n' ) | bash -c '"
-            "while IFS= read -r n && IFS= read -r -N \"$n\" s; do eval \"$s\"; done' > " + dir + "/out3 2>" + dir + "/err3";
+        const std::string cmd3 = "( cat " + dir + "/in3; sleep 0.4; printf 'STOP\\n' ) | bash -c '" + receiverLoop() + "' > " + dir + "/out3 2>" + dir + "/err3";
         CHECK(system(cmd3.c_str()) == 0);
         const std::string o3 = readFile(dir + "/out3");
         LineBuffer lb4; std::vector<std::string> l3;
@@ -199,8 +212,7 @@ int main()
         Config c3; c3.periodMs = 100;
         c3.sensors = {mk("f{}", dir + "/many/f*", 1, ""), mk("tail", dir + "/many/f0", 1, "")};
         { std::ofstream(dir + "/in4") << frameScript(buildScript(c3)); }
-        const std::string cmd4 = "( cat " + dir + "/in4; sleep 0.3; printf 'STOP\\n' ) | bash -c '"
-            "while IFS= read -r n && IFS= read -r -N \"$n\" s; do eval \"$s\"; done' > " + dir + "/out4 2>/dev/null";
+        const std::string cmd4 = "( cat " + dir + "/in4; sleep 0.3; printf 'STOP\\n' ) | bash -c '" + receiverLoop() + "' > " + dir + "/out4 2>/dev/null";
         CHECK(system(cmd4.c_str()) == 0);
         const std::string o4 = readFile(dir + "/out4");
         LineBuffer lb5; std::vector<std::string> l4;
@@ -220,8 +232,7 @@ int main()
     {
         cfg.precise = false;
         { std::ofstream(dir + "/in2") << frameScript(buildScript(cfg)); }
-        const std::string cmd2 = "( cat " + dir + "/in2; sleep 1; printf 'STOP\\n' ) | bash -c '"
-            "while IFS= read -r n && IFS= read -r -N \"$n\" s; do eval \"$s\"; done' > " + dir + "/out2 2>" + dir + "/err2";
+        const std::string cmd2 = "( cat " + dir + "/in2; sleep 1; printf 'STOP\\n' ) | bash -c '" + receiverLoop() + "' > " + dir + "/out2 2>" + dir + "/err2";
         CHECK(system(cmd2.c_str()) == 0);
         const std::string o2 = readFile(dir + "/out2");
         LineBuffer lb3; std::vector<std::string> l2;

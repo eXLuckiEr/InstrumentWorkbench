@@ -2,14 +2,15 @@
 // Monitor of hwmon-like sensors on a Linux device over SSH, without Qt (tested by tools/hwmoncore_test.cpp).
 //
 // Nothing is installed on the device and nothing is written to its disk. The host starts ONE bash process
-// over ssh (kBootstrap) and sends it a script through stdin, framed as "<length>\n<script>". The script
+// over ssh (bootstrapCommand()) and sends it scripts through stdin, each ended by the line endMarker(). The script
 //   1. runs the configured "info" commands once (versions...) and prints their output,
 //   2. then reads the sensor files in a loop and prints one line per period, until it is told to STOP,
 // using only bash builtins while sampling (no forks), timestamps from $EPOCHREALTIME and a deadline-based
 // pause (no drift); the simple mode (Config::precise = false) needs neither bash 5 nor EPOCHREALTIME. When the connection drops the process dies with its terminal.
 //
 // Lines from the device (tab separated, anything else is ignored):
-//   H                          the bootstrap is ready for a script
+//   H2                         the bootstrap is ready for a script
+//   H                          the OLD bootstrap (length framed receiver, saved in a connection): not usable
 //   I <name> <text>            output of an info command (backslash and newline escaped as \\ and \n)
 //   E <text>                   a problem (sensor file not found...)
 //   L <def> <label>            one per sensor slot, before R: the index of the line of the sensors list it
@@ -66,12 +67,23 @@ struct Config {
     std::vector<Info> infos;
 };
 
-// ---- the remote command given to ssh (role default "remoteCommand") ----
-// stty raw: bytes pass unchanged both ways (no echo, no CR/LF conversion).
-inline const char *bootstrapCommand()
+// ---- the receiver and the remote command given to ssh (role default "remoteCommand") ----
+// The receiver reads lines up to a marker line and evals them, again and again. It reads LINES, not
+// "read -N <length>": on a tty (ssh -tt, a UART) bash throws away the input that has already arrived when
+// `read -N` starts, so a script sent in one piece was lost (the first connection did nothing, "Apply" then
+// glued the pieces together). A stray STOP line (the sampling is not running) is ignored.
+inline const char *endMarker() { return "__IWP_END__"; }
+inline std::string receiverLoop()
 {
-    return "stty raw -echo 2>/dev/null; printf 'H\\n'; "
-           "exec bash -c 'while IFS= read -r n && IFS= read -r -N \"$n\" s; do eval \"$s\"; done'";
+    return "while :; do s=; printf -v nl \"\\n\"; while :; do IFS= read -r l || exit 0; [[ $l == STOP ]] && continue; "
+           "[[ $l == __IWP_END__ ]] && break; s+=$l$nl; done; eval \"$s\"; done";
+}
+
+// stty raw: bytes pass unchanged both ways (no echo, no CR/LF conversion). Prints "H2" when ready ("H" is what the
+// old length-framed receiver of a connection saved by an older version printed: the host reports it).
+inline std::string bootstrapCommand()
+{
+    return "stty raw -echo 2>/dev/null; printf 'H2\\n'; exec bash -c '" + receiverLoop() + "'";
 }
 
 // ---- text helpers ----
@@ -420,10 +432,10 @@ inline std::string buildScript(const Config &cfg)
     return s;
 }
 
-// What goes to the device: "<length>\n<script>" (the length is in bytes).
+// What goes to the device: the script and the marker line.
 inline std::string frameScript(const std::string &script)
 {
-    return std::to_string(script.size()) + "\n" + script;
+    return script + (script.empty() || script.back() != '\n' ? "\n" : "") + endMarker() + "\n";
 }
 
 // ---- lines from the device ----
@@ -452,14 +464,14 @@ private:
 };
 
 struct Message {
-    char type = 0;                    // H I E L R S
+    char type = 0;                    // H O I E L R S
     std::vector<std::string> fields;  // after the type
 };
 
 inline bool parseMessage(const std::string &line, Message &m)
 {
-    if (line == "H") {
-        m.type = 'H';
+    if (line == "H2" || line == "H") {
+        m.type = line == "H2" ? 'H' : 'O';   // 'O': an old receiver is running
         m.fields.clear();
         return true;
     }

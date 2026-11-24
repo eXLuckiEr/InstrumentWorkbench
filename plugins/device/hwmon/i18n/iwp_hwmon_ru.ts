@@ -139,6 +139,10 @@
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
+    <message>
+        <source>Device output:</source>
+        <translation>Вывод устройства:</translation>
+    </message>
 </context>
 <context>
     <name>HwmonPlugin</name>
@@ -152,6 +156,10 @@
     <message>
         <source>The device did not start the receiver. Is bash available there?</source>
         <translation>Устройство не запустило приёмник. Есть ли там bash?</translation>
+    </message>
+    <message>
+        <source>The connection has an old start command saved. Clear the remote command (the { } button of the role) and reconnect.</source>
+        <translation>В подключении сохранена старая команда запуска. Очистите удалённую команду (кнопка { } у роли) и подключитесь снова.</translation>
     </message>
 </context>
 <context>

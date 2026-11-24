@@ -13,7 +13,7 @@ QList<iwp::EndpointRole> HwmonPlugin::endpointRoles() const
     stream.description = tr("SSH shell of the device (choose “SSH shell”)");
     // The receiver the session talks to; the script itself is sent over the connection, nothing is
     // installed or written on the device.
-    stream.defaults = {{"remoteCommand", QString::fromLatin1(hwmon::bootstrapCommand())}};
+    stream.defaults = {{"remoteCommand", QString::fromStdString(hwmon::bootstrapCommand())}};
     return {stream};
 }
 

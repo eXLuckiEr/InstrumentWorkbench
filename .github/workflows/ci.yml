@@ -48,6 +48,7 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -Iplugins/device/hwmon tools/hwmoncore_test.cpp -o /tmp/hwmoncore_test
           /tmp/hwmoncore_test
+          python3 tools/hwmon_pty_test.py /tmp/hwmoncore_test   # the receiver on a tty (ssh -tt, UART)
 
   build:
     name: Build (${{ matrix.name }})
