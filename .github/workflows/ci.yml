@@ -44,6 +44,10 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -Iplugins/device/rp2040 tools/rp2040parse_test.cpp -o /tmp/rp2040parse_test
           /tmp/rp2040parse_test
+      - name: hwmoncore_test
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Iplugins/device/hwmon tools/hwmoncore_test.cpp -o /tmp/hwmoncore_test
+          /tmp/hwmoncore_test
 
   build:
     name: Build (${{ matrix.name }})
