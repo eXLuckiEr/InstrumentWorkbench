@@ -1,5 +1,8 @@
 #include "hwmonpage.h"
 
+#include <QElapsedTimer>
+#include <QTimer>
+
 #include <QCheckBox>
 #include <QDir>
 #include <QFile>
@@ -23,6 +26,17 @@ HwmonPage::HwmonPage(iwp::DeviceModel *model, QWidget *parent)
 {
     build();
     buildTiles();
+    if (qEnvironmentVariableIsSet("IWP_HWMON_PROFILE")) {   // diagnostics: how long the UI thread is stuck
+        auto *lagTimer = new QTimer(this);
+        auto *clock = new QElapsedTimer;
+        clock->start();
+        connect(lagTimer, &QTimer::timeout, this, [clock] {
+            const qint64 gap = clock->restart();
+            if (gap > 80)
+                qWarning("hwmon: the UI thread was busy for %lld ms", gap - 20);
+        });
+        lagTimer->start(20);
+    }
     showInfo();
     showStatus();
     connect(m_model, &iwp::DeviceModel::valueChanged, this, [this](const QString &key) {
@@ -194,6 +208,8 @@ void HwmonPage::showInfo()
 
 void HwmonPage::showValues()
 {
+    QElapsedTimer prof;
+    prof.start();
     const QVariantList v = m_model->value(QStringLiteral("values")).toList();
     for (int i = 0; i < m_tiles.size(); ++i) {
         if (i < v.size() && v[i].typeId() == QMetaType::QString)
@@ -203,6 +219,8 @@ void HwmonPage::showValues()
         else
             m_tiles[i]->clearValue();
     }
+    if (qEnvironmentVariableIsSet("IWP_HWMON_PROFILE"))
+        qWarning("hwmon: showValues %lld ms", prof.elapsed());
 }
 
 void HwmonPage::showStatus()

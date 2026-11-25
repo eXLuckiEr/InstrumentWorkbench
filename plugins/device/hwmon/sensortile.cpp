@@ -30,6 +30,8 @@ SensorTile::SensorTile(const TileSpec &spec, iwp::PlotBuffer *buffer, int series
     v->addWidget(title);
 
     m_value = new QLabel;
+    // A changing number must not change the size of the tile: that re-lays out the whole grid on every update.
+    m_value->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     QFont big = m_value->font();
     big.setPointSizeF(big.pointSizeF() * (spec.text ? 1.3 : 1.6));
     m_value->setFont(big);
@@ -58,6 +60,9 @@ SensorTile::SensorTile(const TileSpec &spec, iwp::PlotBuffer *buffer, int series
         m_plot->setStyle(iwp::PlotView::Style::Compact);
         m_plot->setSeries({series});
         m_plot->setWindowSeconds(m_window);
+        m_plot->setAutoRangeFloor(0.0);   // the scale starts at zero and ends at the maximum in the window
+        m_plot->setRenderer(iwp::PlotView::Renderer::Cpu);   // 32 GPU surfaces (one per tile) are far heavier than 32 small CPU plots
+        m_plot->setFrameRate(10);         // 32 tiles redrawn at the application rate (60) make the whole UI slow
         m_plot->setMinimumHeight(60);
         m_plot->setAttribute(Qt::WA_TransparentForMouseEvents);   // the tile gets the double click
         v->addWidget(m_plot, 1);
@@ -126,6 +131,8 @@ void SensorTile::mouseDoubleClickEvent(QMouseEvent *e)
     auto *v = new QVBoxLayout(dlg);
     auto *plot = new iwp::PlotView(m_buffer);
     plot->setSeries({m_series});
+    plot->setAutoRangeFloor(0.0);
+    plot->setFrameRate(30);
     plot->setWindowSeconds(m_window);
     plot->setPaused(m_paused);
     v->addWidget(plot);

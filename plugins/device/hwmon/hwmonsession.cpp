@@ -6,7 +6,7 @@ namespace {
 const QString kShell = QStringLiteral("shell");
 constexpr int kDiscoveryTimeoutMs = 15000;
 constexpr int kMinPollTimeoutMs = 3000;
-constexpr int kValuesIntervalMs = 30;
+constexpr int kValuesIntervalMs = 100;
 }
 
 HwmonSession::HwmonSession(const Endpoints &endpoints, iwp::DeviceModel *deviceModel, QObject *parent)

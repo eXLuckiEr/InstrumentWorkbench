@@ -47,7 +47,7 @@ private:
     hwmon::Config m_cfg;
     QString m_cfgError;
     QTimer *m_pollTimer;
-    QElapsedTimer m_valuesClock;       // the page is told about the values at most every 30 ms
+    QElapsedTimer m_valuesClock;       // the page is told about the values at most every 100 ms
     bool m_busy = false;               // a poll is on its way: the next tick is skipped (a slow link)
     int m_generation = 0;              // changes on reload / stop: answers of the old one are ignored
     QByteArray m_pollScript;
